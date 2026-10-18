@@ -1,0 +1,127 @@
+// =============================================================================
+// Camera.cpp
+// =============================================================================
+
+#include "Nezumi/Render/View/Camera.hpp"
+#include <glm/gtc/matrix_transform.hpp> // orthoZO, projectZO, unProjectZO
+
+namespace Nezumi::Render {
+
+// -----------------------------------------------------------------------------
+// Construction & Destruction
+// -----------------------------------------------------------------------------
+
+Camera::Camera(const CameraConfig& config)
+    : origin_(config.origin)
+    , center_(config.center)
+    , size_  (config.size)
+{
+    update_proj_();
+    update_view_();
+}
+
+// -----------------------------------------------------------------------------
+// Setters
+// -----------------------------------------------------------------------------
+
+void Camera::pan(glm::vec2 delta) {
+    // Divide by zoom so panning distance is consistent at all zoom levels
+    center_ += delta / zoom_;
+    update_view_();
+}
+
+void Camera::set_size(glm::vec2 size) {
+    size_ = size;
+    update_proj_();
+}
+
+void Camera::set_center(glm::vec2 center) {
+    center_ = center;
+    update_view_();
+}
+
+void Camera::set_zoom(float zoom) {
+    zoom_ = zoom;
+    update_proj_();
+}
+
+// -----------------------------------------------------------------------------
+// Getters
+//
+// Screen positions are window pixels with (0, 0) at the TOP-left, y down, as
+// SDL reports the mouse. glm's project/unProject use window coordinates with
+// (0, 0) at the BOTTOM-left, y up (OpenGL's convention), so y is flipped on
+// the way in and on the way out.
+// -----------------------------------------------------------------------------
+
+glm::vec2 Camera::screen_to_world(glm::vec2 screen_pos) const {
+    const glm::vec4 viewport = { 0.0f, 0.0f, size_.x, size_.y };
+    const glm::vec3 world = glm::unProjectZO(
+        /*.win      = */glm::vec3(screen_pos.x, size_.y - screen_pos.y, 0.0f),
+        /*.model    = */view_,
+        /*.proj     = */proj_,
+        /*.viewport = */viewport
+    );
+    return glm::vec2(world);
+}
+
+glm::vec2 Camera::world_to_screen(glm::vec2 world_pos) const {
+    const glm::vec4 viewport = { 0.0f, 0.0f, size_.x, size_.y };
+    const glm::vec3 screen = glm::projectZO(
+        /*.obj      = */glm::vec3(world_pos, 0.0f),
+        /*.model    = */view_,
+        /*.proj     = */proj_,
+        /*.viewport = */viewport
+    );
+    return { screen.x, size_.y - screen.y };
+}
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
+void Camera::update_proj_() {
+    const float w = size_.x * 0.5f;
+    const float h = size_.y * 0.5f;
+
+    switch (origin_) {
+        case CameraOrigin::Centered:
+            proj_ = glm::orthoZO(
+                /*.left   = */-w / zoom_,
+                /*.right  = */ w / zoom_,
+                /*.bottom = */-h / zoom_,
+                /*.top    = */ h / zoom_,
+                /*.zNear  = */-10.0f,
+                /*.zFar   = */ 10.0f
+            );
+            break;
+
+        case CameraOrigin::BottomLeft:
+            proj_ = glm::orthoZO(
+                /*.left   = */ 0.0f,
+                /*.right  = */ size_.x / zoom_,
+                /*.bottom = */ 0.0f,
+                /*.top    = */ size_.y / zoom_,
+                /*.zNear  = */-10.0f,
+                /*.zFar   = */ 10.0f
+            );
+            break;
+
+        case CameraOrigin::TopLeft:
+            proj_ = glm::orthoZO(
+                /*.left   = */ 0.0f,
+                /*.right  = */ size_.x / zoom_,
+                /*.bottom = */ size_.y / zoom_,
+                /*.top    = */ 0.0f,
+                /*.zNear  = */-10.0f,
+                /*.zFar   = */ 10.0f
+            );
+            break;
+    }
+}
+
+void Camera::update_view_() {
+    view_ = glm::translate(glm::mat4(1.0f), glm::vec3(-center_, 0.0f));
+}
+
+} // namespace Nezumi::Render
