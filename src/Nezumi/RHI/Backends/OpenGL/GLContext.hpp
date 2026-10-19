@@ -5,8 +5,8 @@
 // (glad), vsync, and presenting. Part of the OpenGL backend; nothing outside
 // RHI/Backends/OpenGL includes this.
 //
-// Requires OpenGL 4.5 core, for direct state access and glClipControl.
-// Driver queries live in GLInfo; debug output in GLDebug.
+// Requires OpenGL 3.3 core. Driver queries live in GLInfo; debug output in
+// GLDebug.
 // =============================================================================
 
 #pragma once
@@ -24,7 +24,7 @@ namespace Nezumi::RHI::GL {
 // GLContext
 //
 // Throws std::runtime_error if the context can't be created or the driver is
-// older than OpenGL 4.5. Must be destroyed before the window it was made for.
+// older than OpenGL 3.3. Must be destroyed before the window it was made for.
 // -----------------------------------------------------------------------------
 
 class GLContext {
@@ -32,7 +32,7 @@ public:
     explicit GLContext(
         SDL_Window* window = nullptr, // created with GLWindow prepare_window()'s flags
         Logger*     logger = nullptr, // required; receives driver debug output
-        bool        debug  = false,   // enable GL_KHR_debug output
+        bool        debug  = false,   // enable GL_KHR_debug output, if the driver has it
         bool        vsync  = true
     );
 

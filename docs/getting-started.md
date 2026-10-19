@@ -31,7 +31,7 @@ Building the engine requires these tools.
 |-----------------------------------|---------|--------------------------------|
 | [Git](https://git-scm.com/)       |         | Download dependencies          |
 | [CMake](https://cmake.org/)       | 3.25+   | Build dependencies and project |
-| [OpenGL](https://www.opengl.org/) | 4.6+    | Rendering API                  |
+| [OpenGL](https://www.opengl.org/) | 3.3+    | Rendering API                  |
 
 ### 1c. Linux system packages
 
@@ -53,7 +53,7 @@ Dependencies are downloaded and built automatically by CMake the first time you 
 | Library                                                  | Version | Purpose                          |
 |----------------------------------------------------------|---------|----------------------------------|
 | [SDL3](https://libsdl.org/)                              | 3.4.2   | Windowing, input, OpenGL context |
-| [GLAD](https://github.com/Dav1dde/glad)                  | 2.0.8   | OpenGL 4.6 Core loader (vendored in`thirdparty/glad`) |
+| [GLAD](https://github.com/Dav1dde/glad)                  | 2.0.8   | OpenGL 3.3 Core loader (vendored in `thirdparty/glad`) |
 | [GLM](https://github.com/g-truc/glm)                     | 1.0.1   | Mathematics library              |
 | [FreeType](https://freetype.org/)                        | 2.13.3  | Font rendering                   |
 | [STB](https://github.com/nothings/stb)                   | pinned  | Image loading (header-only)      |

@@ -15,7 +15,13 @@ std::uint64_t prepare_sdl_window(bool debug) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, REQUIRED_MAJOR);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, REQUIRED_MINOR);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,  SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS,         debug ? SDL_GL_CONTEXT_DEBUG_FLAG : 0);
+
+    // macOS only creates core profiles 3.2+ as forward-compatible contexts.
+    int flags = debug ? SDL_GL_CONTEXT_DEBUG_FLAG : 0;
+#ifdef __APPLE__
+    flags |= SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+#endif
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS,         flags);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,          1);
 
     // The window's own framebuffer only ever receives the final image, copied

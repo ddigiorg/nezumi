@@ -13,8 +13,9 @@ namespace Nezumi::RHI::GL {
 // driver messages to `logger`, mapping GL severity to log level. Notification-
 // level messages are filtered out.
 //
-// Requires a current context created with the debug flag. The logger must
-// outlive the context, since the driver keeps a pointer to it.
+// Requires a current context created with the debug flag, and GL_KHR_debug
+// (core in 4.3; check GLAD_GL_KHR_debug first on older drivers). The logger
+// must outlive the context, since the driver keeps a pointer to it.
 void enable_debug_output(Logger& logger);
 
 } // namespace Nezumi::RHI::GL

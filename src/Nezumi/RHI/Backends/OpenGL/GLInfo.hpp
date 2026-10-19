@@ -18,12 +18,10 @@ DeviceInfo query_device_info();
 
 // Binding-point limits the backend checks bind groups against. Not part of
 // DeviceInfo because they're specific to how GL flattens bind groups.
+// Storage buffers and image units (GL 4.3 / 4.2) aren't available on 3.3.
 struct GLBindingLimits {
-    std::uint32_t uniform_buffers                 = 0;   // GL_MAX_UNIFORM_BUFFER_BINDINGS
-    std::uint32_t storage_buffers                 = 0;   // GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS
-    std::uint32_t texture_units                   = 0;   // GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS
-    std::uint32_t image_units                     = 0;   // GL_MAX_IMAGE_UNITS
-    std::uint32_t storage_buffer_offset_alignment = 0;   // GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT
+    std::uint32_t uniform_buffers = 0;   // GL_MAX_UNIFORM_BUFFER_BINDINGS
+    std::uint32_t texture_units   = 0;   // GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS
 };
 
 GLBindingLimits query_binding_limits();

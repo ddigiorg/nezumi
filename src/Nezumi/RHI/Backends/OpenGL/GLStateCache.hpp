@@ -48,6 +48,10 @@ private:
     std::array<bool,          MAX_COLOR_ATTACHMENTS> blend_valid_ = {};
     std::array<bool,          MAX_COLOR_ATTACHMENTS> mask_valid_  = {};
 
+    // The blend function and equation, shared by every target (GL 3.3).
+    GLBlendTarget blend_func_       = {};
+    bool          blend_func_valid_ = false;
+
     GLint stencil_reference_ = 0;
 };
 

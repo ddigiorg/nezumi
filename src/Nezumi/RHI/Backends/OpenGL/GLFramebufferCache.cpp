@@ -72,8 +72,11 @@ GLuint GLFramebufferCache::create_(
     const GLTexturePool&  textures,
     Logger& logger
 ) const {
+    // Without DSA the FBO is edited through a binding point. It's left bound
+    // afterwards; every caller binds what it needs right after get().
     GLuint fbo = 0;
-    glCreateFramebuffers(1, &fbo);
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
     auto fail = [&](const char* why) -> GLuint {
         logger.error("Framebuffer creation failed: {}", why);
@@ -87,14 +90,17 @@ GLuint GLFramebufferCache::create_(
         const GLTexture* texture = textures.get(key.colors[i]);
         if (!texture) return fail("color attachment is not a live texture");
 
-        glNamedFramebufferTexture(fbo, GL_COLOR_ATTACHMENT0 + i, texture->id, 0);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, texture->id, 0);
         draw_buffers[i] = GL_COLOR_ATTACHMENT0 + i;
     }
 
     if (key.color_count > 0) {
-        glNamedFramebufferDrawBuffers(fbo, static_cast<GLsizei>(key.color_count), draw_buffers);
+        glDrawBuffers(static_cast<GLsizei>(key.color_count), draw_buffers);
     } else {
-        glNamedFramebufferDrawBuffer(fbo, GL_NONE);
+        // Before GL 4.1 a read buffer with nothing attached also makes the
+        // framebuffer incomplete, so depth-only FBOs turn both off.
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
     }
 
     // Depth / stencil attachment
@@ -104,10 +110,10 @@ GLuint GLFramebufferCache::create_(
 
         const GLenum point = has_stencil(texture->format) ? GL_DEPTH_STENCIL_ATTACHMENT
                                                           : GL_DEPTH_ATTACHMENT;
-        glNamedFramebufferTexture(fbo, point, texture->id, 0);
+        glFramebufferTexture(GL_FRAMEBUFFER, point, texture->id, 0);
     }
 
-    if (glCheckNamedFramebufferStatus(fbo, GL_DRAW_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         return fail("attachments form an incomplete framebuffer "
                     "(mismatched sizes, or a format that can't be rendered to)");
     }

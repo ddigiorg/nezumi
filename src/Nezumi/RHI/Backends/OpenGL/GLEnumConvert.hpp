@@ -28,7 +28,7 @@ namespace Nezumi::RHI::GL {
 // Formats
 // -----------------------------------------------------------------------------
 
-// Sized internal format for glTextureStorage*. GL_NONE for Format::Undefined.
+// Sized internal format for glTexImage*. GL_NONE for Format::Undefined.
 GLenum to_gl_internal_format(Format format) noexcept;
 
 // How pixel data handed to glTextureSubImage* is laid out in memory.
@@ -54,7 +54,8 @@ GLenum to_gl_address_mode(SamplerAddressMode mode) noexcept;
 // Shaders
 // -----------------------------------------------------------------------------
 
-// GL_VERTEX_SHADER etc. GL_NONE unless exactly one stage bit is set.
+// GL_VERTEX_SHADER or GL_FRAGMENT_SHADER. GL_NONE for Compute (GL 4.3) and
+// for anything but exactly one stage bit.
 GLenum to_gl_shader_stage(ShaderStageFlags stage) noexcept;
 
 // -----------------------------------------------------------------------------

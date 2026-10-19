@@ -4,7 +4,7 @@
 // Instance draw RectangleSDF render objects.
 // =============================================================================
 
-#version 460 core
+#version 330 core
 
 layout(std140, binding = 0) uniform FrameUniforms {
     mat4 u_view_proj;
@@ -16,11 +16,11 @@ layout(location = 2) in vec4 i_color;        // instance fill
 layout(location = 3) in vec4 i_border_color; // instance border
 layout(location = 4) in vec2 i_params;       // instance { corner_radius, border_width }
 
-layout(location = 0) out vec2 v_local;  // position relative to box center
-layout(location = 1) out vec2 v_half;   // half size
-layout(location = 2) out vec4 v_color;
-layout(location = 3) out vec4 v_border_color;
-layout(location = 4) out vec2 v_params; // { radius, border }, clamped
+out vec2 v_local;  // position relative to box center
+out vec2 v_half;   // half size
+out vec4 v_color;
+out vec4 v_border_color;
+out vec2 v_params; // { radius, border }, clamped
 
 void main() {
     vec2 size      = i_pos_box.zw - i_pos_box.xy;
