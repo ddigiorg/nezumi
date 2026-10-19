@@ -12,9 +12,9 @@ namespace Nezumi::Render {
 // -----------------------------------------------------------------------------
 
 Camera::Camera(const CameraConfig& config)
-    : origin_(config.origin)
-    , center_(config.center)
-    , size_  (config.size)
+    : origin_  (config.origin)
+    , position_(config.position)
+    , size_    (config.size)
 {
     update_proj_();
     update_view_();
@@ -24,20 +24,20 @@ Camera::Camera(const CameraConfig& config)
 // Setters
 // -----------------------------------------------------------------------------
 
-void Camera::pan(glm::vec2 delta) {
-    // Divide by zoom so panning distance is consistent at all zoom levels
-    center_ += delta / zoom_;
+void Camera::translate(glm::vec2 delta) {
+    // Divide by zoom so translation distance is consistent at all zoom levels
+    position_ += delta / zoom_;
+    update_view_();
+}
+
+void Camera::set_position(glm::vec2 position) {
+    position_ = position;
     update_view_();
 }
 
 void Camera::set_size(glm::vec2 size) {
     size_ = size;
     update_proj_();
-}
-
-void Camera::set_center(glm::vec2 center) {
-    center_ = center;
-    update_view_();
 }
 
 void Camera::set_zoom(float zoom) {
@@ -121,7 +121,7 @@ void Camera::update_proj_() {
 }
 
 void Camera::update_view_() {
-    view_ = glm::translate(glm::mat4(1.0f), glm::vec3(-center_, 0.0f));
+    view_ = glm::translate(glm::mat4(1.0f), glm::vec3(-position_, 0.0f));
 }
 
 } // namespace Nezumi::Render

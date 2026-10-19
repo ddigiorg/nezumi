@@ -32,9 +32,8 @@ public:
 
         // TODO: make size and position tile-space units
         // TODO: add set_position()
-        Render::Camera* player_camera = renderer->get_player_camera();
-        player_camera->set_zoom(16.0f);
-        player_camera->pan({ 256.0f, 256.0f });
+        // Render::Camera* player_camera = renderer->get_player_camera();
+        // player_camera->set_zoom(16.0f);
 
 
         SurfaceID surface_id = world.create_surface(
@@ -45,15 +44,19 @@ public:
         );
 
         // EntityHandle e1 = world.create_entity<Unit>(
-        //     /*.domain   = */surface_id,
+        //     /*.surface  = */surface_id,
         //     /*.position = */{ 16.0f, 16.0f },
         //     /*.args     = */true
         // );
 
         for(size_t i = 0; i < 20000; i++) {
             EntityHandle e1 = world.create_entity<Unit>(
-                /*.domain   = */surface_id,
-                /*.position = */{ 16.0f, 16.0f },
+                /*.surface  = */surface_id,
+                /*.position = */{
+                    // TODO: random positions should be from world not engine
+                    /*.x = */engine.random().get<float>(-16.0f, 16.0f),
+                    /*.y = */engine.random().get<float>(-16.0f, 16.0f),
+                },
                 /*.args     = */true
             );
         }
@@ -83,7 +86,7 @@ public:
                         .color   = { 0.0f, 1.0f, 0.0f, 1.0f },
                     },
                     Render::DrawParams{
-                        .view  = Render::View::Player,
+                        .view  = 0,
                         .layer = 0,
                     }
                 );
@@ -97,7 +100,7 @@ public:
                             .color   = { 1.0f, 0.0f, 0.0f, 1.0f },
                         },
                         Render::DrawParams{
-                            .view  = Render::View::Player,
+                            .view  = 0,
                             .layer = 1,
                         }
                     );

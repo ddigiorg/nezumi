@@ -33,21 +33,21 @@ public:
     // Setters
     // -------------------------------------------------------------------------
 
-    void pan       (glm::vec2 delta );
-    void set_size  (glm::vec2 size  );
-    void set_center(glm::vec2 center);
-    void set_zoom  (float     factor);
+    void translate   (glm::vec2 delta   );
+    void set_position(glm::vec2 position);
+    void set_size    (glm::vec2 size    );
+    void set_zoom    (float     factor  );
 
     // -------------------------------------------------------------------------
     // Getters
     // -------------------------------------------------------------------------
 
-    float     get_zoom()   const { return zoom_;         }
-    glm::vec2 get_center() const { return center_;       }
-    glm::vec2 get_size()   const { return size_;         }
-    glm::mat4 get_view()   const { return view_;         }
-    glm::mat4 get_proj()   const { return proj_;         }
-    glm::mat4 get_vp()     const { return proj_ * view_; }
+    float     get_zoom()     const { return zoom_;         }
+    glm::vec2 get_position() const { return position_;     }
+    glm::vec2 get_size()     const { return size_;         }
+    glm::mat4 get_view()     const { return view_;         }
+    glm::mat4 get_proj()     const { return proj_;         }
+    glm::mat4 get_vp()       const { return proj_ * view_; }
 
     // Convert a screen-space position (pixels) to world-space
     glm::vec2 screen_to_world(glm::vec2 screen_pos) const;
@@ -68,12 +68,12 @@ private:
     // Members
     // -------------------------------------------------------------------------
 
-    CameraOrigin origin_ = CameraOrigin::Centered;
-    float        zoom_   = 1.0f;
-    glm::vec2    center_ = {   0.0f,   0.0f };
-    glm::vec2    size_   = { 800.0f, 600.0f };
-    glm::mat4    view_   = glm::mat4(1.0f);
-    glm::mat4    proj_   = glm::mat4(1.0f);
+    CameraOrigin origin_   = CameraOrigin::Centered;
+    float        zoom_     = 1.0f;
+    glm::vec2    position_ = {   0.0f,   0.0f };
+    glm::vec2    size_     = { 800.0f, 600.0f };
+    glm::mat4    view_     = glm::mat4(1.0f);
+    glm::mat4    proj_     = glm::mat4(1.0f);
 };
 
 } // namespace Nezumi::Render

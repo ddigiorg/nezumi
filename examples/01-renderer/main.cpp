@@ -71,11 +71,24 @@ public:
     void on_init(Nezumi::Engine& engine) override {
         Render::Renderer* r = engine.renderer();
 
-        // Get default player camera (world-space, origin center)
-        player_camera_ = r->get_player_camera();
+        // Create camera and overwrite the default view slot 0
+        auto [cam_handle, cam] = r->create_camera(
+            Render::CameraConfig{
+                .name     = "world-camera",
+                .origin   = Render::CameraOrigin::Centered,
+                .position = {   0.0f,  0.0f },
+                .size     = { 800.0f, 600.0f},
+            }
+        );
 
-        // Get default screen camera (screen-space, origin bottom-left)
-        screen_camera_ = r->get_screen_camera();
+        r->set_view(0, cam_handle);
+
+
+        // // Get default player camera (world-space, origin center)
+        // player_camera_ = r->get_player_camera();
+
+        // // Get default screen camera (screen-space, origin bottom-left)
+        // screen_camera_ = r->get_screen_camera();
 
         // Setup sprite atlas
         atlas_ = r->create_atlas(
@@ -139,10 +152,11 @@ private:
     // Helpers
     // -------------------------------------------------------------------------
 
+    // TODO
     // Player-view draw params on the given layer.
     static Render::DrawParams player_draw_params_(Layer layer = LAYER_CONTENT) {
         return Render::DrawParams{
-            .view  = Render::View::Player,
+            .view  = 0,
             .layer = layer,
         };
     }
@@ -528,7 +542,7 @@ private:
                     .tint    = d.tint,
                 },
                 Render::DrawParams{
-                    .view     = Render::View::Player,
+                    .view     = 0,
                     .layer    = LAYER_CONTENT,
                     .order    = 0,
                     .material = atlas_->material(),

@@ -24,7 +24,7 @@
 namespace Nezumi::Render {
 
 struct DrawParams {
-    ViewID       view     = View::Screen;
+    ViewID       view     = 0;
     std::uint8_t layer    = 0;
     std::int32_t order    = 0; // clamped to +/- 2^23 (see SortKey.hpp)
     MaterialID   material = Material::None;

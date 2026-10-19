@@ -193,14 +193,9 @@ public:
     // - ViewID 1: "screen-camera"
     // -------------------------------------------------------------------------
 
-    void set_view(ViewID view, Handle<Camera> camera);
-
-    void clear_view(ViewID view);
-
-    Handle<Camera> get_view(ViewID view) const;
-
-    Camera* get_player_camera();
-    Camera* get_screen_camera();
+    void           clear_view(ViewID view);
+    void           set_view  (ViewID view, Handle<Camera> camera);
+    Handle<Camera> get_view  (ViewID view) const;
 
     // -------------------------------------------------------------------------
     // Render
@@ -216,7 +211,7 @@ public:
     {
         assert(in_frame_ &&
                "Renderer: drawing outside begin_frame and end_frame");
-        assert(params.view < VIEW_COUNT && views_[params.view] &&
+        assert(params.view < VIEW_CAPACITY && views_[params.view] &&
                "Renderer: drawing to a view with no camera (see set_view)");
         // TODO: assert instead of ensure since kinds should be registered
         //       before any frames
@@ -307,7 +302,7 @@ private:
     SlotMap<Camera> cameras_;
     SlotMap<Font  > fonts_;
 
-    std::array<Handle<Camera>, VIEW_COUNT> views_ = {};
+    std::array<Handle<Camera>, VIEW_CAPACITY> views_ = {};
 
     // Miscellaneous
     FrameStats stats_;

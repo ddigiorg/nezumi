@@ -14,11 +14,6 @@ namespace Nezumi::Render {
 
 using ViewID = std::uint8_t;
 
-inline constexpr std::uint32_t VIEW_COUNT = 16;
-
-struct View {
-    static constexpr ViewID Player = 0; // world-space (default)
-    static constexpr ViewID Screen = 1; // screen-space, i.e. UI
-};
+inline constexpr std::uint32_t VIEW_CAPACITY = 16;
 
 } // namespace Nezumi::Render

@@ -32,7 +32,7 @@ public:
     // -------------------------------------------------------------------------
 
     static constexpr std::uint32_t FRAME_GROUP = 0;
-    static constexpr std::uint32_t MAX_VIEWS   = VIEW_COUNT; // one slot per possible ViewID
+    static constexpr std::uint32_t MAX_VIEWS   = VIEW_CAPACITY; // one slot per possible ViewID
 
     // -------------------------------------------------------------------------
     // Construction & Destruction
