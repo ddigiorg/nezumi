@@ -15,7 +15,7 @@ class CommandQueue;
 class FrameBindings;
 class KindRegistry;
 class MaterialTable;
-class RendererConfig;
+struct RendererConfig;
 class ShaderLibrary;
 class StreamBuffer;
 

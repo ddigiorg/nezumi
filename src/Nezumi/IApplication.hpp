@@ -5,9 +5,10 @@
 // =============================================================================
 
 #pragma once
-class Engine;
 
 namespace Nezumi {
+
+class Engine;
 
 class IApplication {
 public:

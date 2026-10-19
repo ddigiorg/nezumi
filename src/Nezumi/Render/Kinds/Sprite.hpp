@@ -3,8 +3,7 @@
 //
 // Per-instance rectangle data (48 bytes).
 //
-// Renderer::draw(const SpriteRegion&, ...) builds it from an atlas sprite and
-// sets the draw's material to the sprite's page.
+// Drawn with Renderer::draw_sprite(sprite, { .material = atlas->material() }).
 //
 // For depth sorting put the sort value in DrawParams::order, e.g.
 //

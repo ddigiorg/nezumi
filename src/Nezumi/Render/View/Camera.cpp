@@ -76,6 +76,13 @@ glm::vec2 Camera::world_to_screen(glm::vec2 world_pos) const {
     return { screen.x, size_.y - screen.y };
 }
 
+glm::vec4 Camera::world_bounds() const {
+    // Screen y points down, so the bottom-left corner is (0, height).
+    const glm::vec2 a = screen_to_world({ 0.0f,    size_.y });
+    const glm::vec2 b = screen_to_world({ size_.x, 0.0f    });
+    return { glm::min(a, b), glm::max(a, b) };
+}
+
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------

@@ -22,11 +22,18 @@ Renderer::Renderer(RHI::Device& device, const RendererConfig& config)
     , shaders_  (device)
     , kinds_    (device)
 {
-    // Setup default camera and assign it to the default view slot 0
-    views_[0] = cameras_.create(
+    // Setup default cameras for the default views
+    views_[View::World] = cameras_.create(
         CameraConfig{
-            .name   = "default-camera",
-            .origin = CameraOrigin::Centered
+            .name   = "world-camera",
+            .origin = CameraOrigin::Centered,
+        }
+    ).handle;
+
+    views_[View::Screen] = cameras_.create(
+        CameraConfig{
+            .name   = "screen-camera",
+            .origin = CameraOrigin::BottomLeft,
         }
     ).handle;
 
@@ -267,6 +274,10 @@ Handle<Camera> Renderer::get_view(ViewID view) const {
     return view < VIEW_CAPACITY ? views_[view] : Handle<Camera>{};
 }
 
+Camera* Renderer::get_view_camera(ViewID view) {
+    return cameras_.get(get_view(view));
+}
+
 // -----------------------------------------------------------------------------
 // Render
 // -----------------------------------------------------------------------------
@@ -285,14 +296,10 @@ void Renderer::draw_circle(
     const DrawParams& params,
     const bool        filled)
 {
-    Circle new_circle = circle; // TODO: could probably be better
-
-    if (filled) {
-        new_circle.width = new_circle.radius;
-    } else {
-        assert(circle.width < circle.radius); // TODO: needs message
-    }
-    draw<CircleKind>(new_circle, params);
+    // The shader fills the whole disc once width reaches radius.
+    Circle instance = circle;
+    if (filled) instance.width = instance.radius;
+    draw<CircleKind>(instance, params);
 }
 
 // Render Line render object
@@ -327,6 +334,8 @@ void Renderer::draw_sprite(
     const Sprite&     sprite,
     const DrawParams& params)
 {
+    assert(params.material != Material::None &&
+           "Renderer: draw_sprite needs a material (e.g. atlas->material())");
     draw<SpriteKind>(sprite, params);
 }
 

@@ -55,6 +55,10 @@ public:
     // Convert a world-space position to screen-space (pixels)
     glm::vec2 world_to_screen(glm::vec2 world_pos)  const;
 
+    // World-space rectangle the camera sees { min_x, min_y, max_x, max_y }.
+    // For culling: skip anything that doesn't overlap it.
+    glm::vec4 world_bounds() const;
+
 private:
 
     // -------------------------------------------------------------------------

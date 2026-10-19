@@ -33,7 +33,9 @@
 // Cameras & views
 //
 //   - Up to 16 views (View::World, View::Screen, ...), each bound to a
-//     camera. Cameras are long-lived and owned in a SlotMap.
+//     camera. Cameras are long-lived and owned in a SlotMap. A view refers
+//     to a camera, never the other way round, so one camera can serve
+//     several views.
 //   - Per-view matrices live in one uniform buffer, selected with a dynamic
 //     offset: one group-0 bind per view per frame.
 //   - Camera origins: Centered (world) and BottomLeft (screen); both keep y up.
@@ -187,15 +189,18 @@ public:
     // sized to the device's backbuffer and the camera matrix is uploaded to
     // that view's slot.
     //
-    // Default views (made from consturctor, unless replaced):
+    // Default views (made by the constructor, unless replaced):
     //
-    // - ViewID 0: "player-camera"
-    // - ViewID 1: "screen-camera"
+    // - View::World:  "world-camera"  (Centered)
+    // - View::Screen: "screen-camera" (BottomLeft, 1 unit = 1 pixel)
     // -------------------------------------------------------------------------
 
     void           clear_view(ViewID view);
     void           set_view  (ViewID view, Handle<Camera> camera);
     Handle<Camera> get_view  (ViewID view) const;
+
+    // The camera a view draws through, or nullptr if it has none.
+    Camera*        get_view_camera(ViewID view);
 
     // -------------------------------------------------------------------------
     // Render
@@ -216,7 +221,7 @@ public:
         // TODO: assert instead of ensure since kinds should be registered
         //       before any frames
         const KindID kind = kinds_.ensure<K>(context_);
-        queue_.push(SortKey::make(params.view, params, kind), instance);
+        queue_.push(SortKey::make(params, kind), instance);
     }
 
     // Render Arrow render object

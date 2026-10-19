@@ -17,7 +17,8 @@
 #include "Nezumi/Render/Material/MaterialID.hpp"
 #include "Nezumi/Render/RendererContext.hpp"
 #include "Nezumi/RHI/RHI.hpp"
-#include <cstdint> // uint32_t
+#include <cstdint>     // uint32_t
+#include <glm/glm.hpp> // vec4
 
 namespace Nezumi::Render {
 
@@ -49,6 +50,14 @@ public:
     // -------------------------------------------------------------------------
     // Sprites
     // -------------------------------------------------------------------------
+
+    // Image pixels { x0, y0, x1, y1 } (y down, row 0 at the top, as in an
+    // image editor) to the UVs Sprite::tex_box expects.
+    glm::vec4 tex_box(glm::vec4 pixel_box) const {
+        const float w = float(width_);
+        const float h = float(height_);
+        return pixel_box / glm::vec4{ w, h, w, h };
+    }
 
     // const SpriteRegion& operator[](SpriteID id) const { return sprites_[id]; }
 
