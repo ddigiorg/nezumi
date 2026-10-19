@@ -30,17 +30,14 @@ inline constexpr std::uint32_t BINDINGS_PER_GROUP    = 16; // bindings 0..15 in 
 //
 //     GL binding = group * 16 + binding
 //
-// so GLSL is written with those numbers:
+// GLSL 3.30 can't declare binding points (layout(binding = N) is 4.20), so
+// shaders declare plain uniforms and each BindGroupLayoutEntry carries the
+// GLSL name. When a pipeline is created, GLDevice looks each name up and
+// assigns the binding (glUniformBlockBinding for blocks, glUniform1i for
+// samplers):
 //
-//     layout(std140, binding = 0) uniform Frame { mat4 view_proj; };  // group 0, binding 0
-//     layout(binding = 16) uniform sampler2D u_atlas;                 // group 1, binding 0
-//
-// GLSL 3.30 has no binding qualifier (it arrived in 4.20), so GLDevice
-// strips `binding = N` from uniform declarations before compiling and
-// applies the numbers itself after linking (glUniformBlockBinding for
-// blocks, glUniform1i for samplers). See GLShaderBindings.hpp. Shaders keep
-// the Vulkan-style declarations, so the same source can later be compiled
-// to SPIR-V.
+//     layout(std140) uniform Frame { mat4 view_proj; };  // entry { .binding = 0, .name = "Frame" }, group 0 -> 0
+//     uniform sampler2D u_texture;                       // entry { .binding = 0, .name = "u_texture" }, group 1 -> 16
 //
 // Samplers: GLSL's sampler2D combines a texture and a sampler, while the RHI
 // keeps them separate. A group's Sampler entry applies to every

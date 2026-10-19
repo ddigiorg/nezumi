@@ -7,7 +7,6 @@
 #include "Nezumi/Logger/Logger.hpp"
 #include "Nezumi/RHI/Backends/OpenGL/GLEnumConvert.hpp"
 #include "Nezumi/RHI/Backends/OpenGL/GLInfo.hpp"
-#include "Nezumi/RHI/Backends/OpenGL/GLShaderBindings.hpp"
 #include "Nezumi/RHI/Common/FormatInfo.hpp"
 #include <algorithm>
 #include <glad/gl.h>
@@ -574,12 +573,8 @@ ShaderHandle GLDevice::create(const ShaderConfig& config) {
     shader.name  = std::string(config.name);
     shader.id    = glCreateShader(stage);
 
-    // GLSL 3.30 can't declare bindings; take them out (GLShaderBindings.hpp).
-    std::string code(reinterpret_cast<const char*>(config.code.data()), config.code.size());
-    shader.bindings = strip_binding_qualifiers(code);
-
-    const GLchar* source = code.c_str();
-    const auto    length = static_cast<GLint>(code.size());
+    const auto* source = reinterpret_cast<const GLchar*>(config.code.data());
+    const auto  length = static_cast<GLint>(config.code.size());
     glShaderSource(shader.id, 1, &source, &length);
     glCompileShader(shader.id);
 
@@ -735,8 +730,30 @@ RenderPipelineHandle GLDevice::create(const RenderPipelineConfig& config) {
         return fail("linking failed:\n" + log);
     }
 
-    apply_bindings(pipeline.program, vs->bindings);
-    apply_bindings(pipeline.program, fs->bindings);
+    // ---- Bindings -----------------------------------------------------------
+    // GLSL 3.30 can't declare binding points, so each uniform block and
+    // sampler is found by its layout entry's name and pointed at its GL
+    // binding (GLLimits.hpp). Names the program doesn't use (another stage's,
+    // or optimized away) are skipped.
+    glUseProgram(pipeline.program);
+    for (std::uint32_t group = 0; group < config.bind_group_layouts.size(); ++group) {
+        const GLBindGroupLayout* layout = live_(bind_group_layouts_, config.bind_group_layouts[group]);
+
+        for (std::size_t i = 0; i < layout->entries.size(); ++i) {
+            const BindGroupLayoutEntry& entry = layout->entries[i];
+            const char*                 name  = layout->names[i].c_str();
+            const GLuint                point = gl_binding(group, entry.binding);
+
+            if (entry.type == BindType::UniformBuffer) {
+                const GLuint index = glGetUniformBlockIndex(pipeline.program, name);
+                if (index != GL_INVALID_INDEX) glUniformBlockBinding(pipeline.program, index, point);
+            } else if (entry.type == BindType::SampledTexture) {
+                const GLint location = glGetUniformLocation(pipeline.program, name);
+                if (location >= 0) glUniform1i(location, static_cast<GLint>(point));
+            }
+        }
+    }
+    glUseProgram(0);
 
     // ---- Vertex layout ------------------------------------------------------
     // The VAO records which attributes are enabled and their divisors. The
@@ -890,6 +907,14 @@ BindGroupLayoutHandle GLDevice::create(const BindGroupLayoutConfig& config) {
                 return {};
         }
 
+        // See BindGroupLayoutEntry::name.
+        const bool named = entry.type == BindType::UniformBuffer || entry.type == BindType::SampledTexture;
+        if (named && entry.name.empty()) {
+            logger_->error("create_bind_group_layout('{}'): binding {} needs a name (its GLSL uniform "
+                           "block or sampler name) on OpenGL 3.3", config.name, entry.binding);
+            return {};
+        }
+
         if (entry.has_dynamic_offset) {
             if (!is_buffer) {
                 logger_->error("create_bind_group_layout('{}'): binding {} has a dynamic offset "
@@ -905,6 +930,12 @@ BindGroupLayoutHandle GLDevice::create(const BindGroupLayoutConfig& config) {
         logger_->error("create_bind_group_layout('{}'): a group with textures may have at most one "
                        "sampler on OpenGL (it applies to every texture in the group)", config.name);
         return {};
+    }
+
+    // Own the names: the config's string_views don't outlive this call.
+    for (BindGroupLayoutEntry& entry : layout.entries) {
+        layout.names.emplace_back(entry.name);
+        entry.name = {};
     }
 
     return bind_group_layouts_.create(std::move(layout)).handle;

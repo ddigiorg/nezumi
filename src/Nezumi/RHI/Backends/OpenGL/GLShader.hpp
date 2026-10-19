@@ -7,22 +7,16 @@
 
 #pragma once
 #include "Nezumi/Object/SlotMap.hpp"
-#include "Nezumi/RHI/Backends/OpenGL/GLShaderBindings.hpp"
 #include "Nezumi/RHI/Shader/ShaderHandle.hpp"
 #include "Nezumi/RHI/Shader/ShaderStageFlags.hpp"
 #include <glad/gl.h>
 #include <string>
-#include <vector>
 
 namespace Nezumi::RHI::GL {
 
 struct GLShader {
     GLuint           id    = 0;
     ShaderStageFlags stage = ShaderStageFlags::None;
-
-    // Binding qualifiers stripped from the source, applied once the stage
-    // is linked into a program (see GLShaderBindings.hpp).
-    std::vector<GLUniformBinding> bindings;
 
     // See GLTexture::pending_destroy.
     bool pending_destroy = false;
