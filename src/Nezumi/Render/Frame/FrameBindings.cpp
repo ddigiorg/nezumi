@@ -36,6 +36,7 @@ FrameBindings::FrameBindings(RHI::Device& device)
             .type               = RHI::BindType::UniformBuffer,
             .stage              = RHI::ShaderStageFlags::Vertex,
             .has_dynamic_offset = true,
+            .name               = "Frame",
         },
     };
 

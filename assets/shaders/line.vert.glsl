@@ -6,7 +6,7 @@
 
 #version 330 core
 
-layout(std140, binding = 0) uniform Frame {
+layout(std140) uniform Frame {
     mat4 view_proj;
 };
 

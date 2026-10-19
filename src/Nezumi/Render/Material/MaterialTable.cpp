@@ -28,6 +28,7 @@ MaterialTable::MaterialTable(RHI::Device& device)
             .binding = 0,
             .type    = RHI::BindType::SampledTexture,
             .stage   = RHI::ShaderStageFlags::Fragment,
+            .name    = "u_texture",
         },
         RHI::BindGroupLayoutEntry{
             .binding = 1,

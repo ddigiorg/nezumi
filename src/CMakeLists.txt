@@ -50,8 +50,10 @@ target_include_directories(nezumi_core
 
 target_compile_options(nezumi_core PRIVATE ${NEZUMI_WARNINGS})
 
+# PUBLIC: Core's own headers include SDL (Window.hpp, BasePath.hpp), so
+# anything that includes them needs SDL's include path.
 target_link_libraries(nezumi_core
-    PRIVATE
+    PUBLIC
         SDL3::SDL3
 )
 
@@ -82,7 +84,6 @@ add_library(nezumi_rhi STATIC
     Nezumi/RHI/Backends/OpenGL/GLEnumConvert.cpp
     Nezumi/RHI/Backends/OpenGL/GLFramebufferCache.cpp
     Nezumi/RHI/Backends/OpenGL/GLInfo.cpp
-    Nezumi/RHI/Backends/OpenGL/GLShaderBindings.cpp
     Nezumi/RHI/Backends/OpenGL/GLStateCache.cpp
     Nezumi/RHI/Backends/OpenGL/GLWindow.cpp
     Nezumi/RHI/Device.cpp
