@@ -118,7 +118,7 @@ GLenum to_gl_shader_stage(ShaderStageFlags stage) noexcept {
         case ShaderStageFlags::None:     return GL_NONE;
         case ShaderStageFlags::Vertex:   return GL_VERTEX_SHADER;
         case ShaderStageFlags::Fragment: return GL_FRAGMENT_SHADER;
-        case ShaderStageFlags::Compute:  return GL_COMPUTE_SHADER;
+        case ShaderStageFlags::Compute:  return GL_NONE;   // compute shaders are 4.3
     }
     return GL_NONE;   // combinations of bits
 }

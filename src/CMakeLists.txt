@@ -82,6 +82,7 @@ add_library(nezumi_rhi STATIC
     Nezumi/RHI/Backends/OpenGL/GLEnumConvert.cpp
     Nezumi/RHI/Backends/OpenGL/GLFramebufferCache.cpp
     Nezumi/RHI/Backends/OpenGL/GLInfo.cpp
+    Nezumi/RHI/Backends/OpenGL/GLShaderBindings.cpp
     Nezumi/RHI/Backends/OpenGL/GLStateCache.cpp
     Nezumi/RHI/Backends/OpenGL/GLWindow.cpp
     Nezumi/RHI/Device.cpp

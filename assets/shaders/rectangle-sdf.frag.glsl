@@ -4,13 +4,13 @@
 // Instance draw RectangleSDF render objects.
 // =============================================================================
 
-#version 460 core
+#version 330 core
 
-layout(location = 0) in vec2 v_local;
-layout(location = 1) in vec2 v_half;
-layout(location = 2) in vec4 v_color;
-layout(location = 3) in vec4 v_border_color;
-layout(location = 4) in vec2 v_params;
+in vec2 v_local;
+in vec2 v_half;
+in vec4 v_color;
+in vec4 v_border_color;
+in vec2 v_params;
 
 layout(location = 0) out vec4 o_color;
 

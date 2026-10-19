@@ -4,7 +4,7 @@
 // Instance draw TextGlyphSDF render objects.
 // =============================================================================
 
-#version 460 core
+#version 330 core
 
 layout(std140, binding = 0) uniform Frame {
     mat4 view_proj;
@@ -17,10 +17,10 @@ layout(location = 3) in vec4 i_color;         // instance {     r,     g,     b,
 layout(location = 4) in vec4 i_outline_color; // instance {     r,     g,     b,     a }
 layout(location = 5) in vec4 i_params;        // instance { outline width, weight, outline offset (uv) }
 
-layout(location = 0) out vec2 v_tex;
-layout(location = 1) out vec4 v_color;
-layout(location = 2) out vec4 v_outline_color;
-layout(location = 3) out vec4 v_params;
+out vec2 v_tex;
+out vec4 v_color;
+out vec4 v_outline_color;
+out vec4 v_params;
 
 void main() {
     vec2 world = mix(i_pos_box.xy, i_pos_box.zw, v_pos);
