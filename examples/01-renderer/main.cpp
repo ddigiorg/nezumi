@@ -7,6 +7,7 @@
 // =============================================================================
 
 #include "Nezumi/Engine.hpp"
+#include "Nezumi/Render/View/ViewID.hpp"
 #include <array>       // array
 #include <cmath>       // cos, sin
 #include <cstdint>     // int32_t, uint32_t
@@ -23,8 +24,14 @@ using namespace Nezumi; // TODO: should examples be more explicit?
 // Helpers
 // -----------------------------------------------------------------------------
 
+// Convert degrees to radians
 constexpr float radians(float degrees) {
     return degrees * (std::numbers::pi_v<float> / 180.0f);
+}
+
+// Point on a circle of `radius` around `center` at `angle` (radians).
+glm::vec2 on_circle_(glm::vec2 center, float radius, float angle) {
+    return center + radius * glm::vec2{ std::cos(angle), std::sin(angle) };
 }
 
 // -----------------------------------------------------------------------------
@@ -64,16 +71,30 @@ static constexpr Layer LAYER_OVERLAY    = 3;
 // One per layer this example draws on. Sprites add their atlas material.
 // -----------------------------------------------------------------------------
 
-namespace Draw {
-    using Render::DrawParams;
-    using Render::View;
+constexpr Render::DrawParams DRAW_PARAMS_BACKGROUND = {
+    .view  = Render::View::World,
+    .layer = LAYER_BACKGROUND
+};
 
-    constexpr DrawParams Background = { .view = View::World,  .layer = LAYER_BACKGROUND };
-    constexpr DrawParams Grid       = { .view = View::World,  .layer = LAYER_GRID       };
-    constexpr DrawParams Content    = { .view = View::World,  .layer = LAYER_CONTENT    };
-    constexpr DrawParams Overlay    = { .view = View::World,  .layer = LAYER_OVERLAY    };
-    constexpr DrawParams Ui         = { .view = View::Screen, .layer = 0                };
-}
+constexpr Render::DrawParams DRAW_PARAMS_GRID = {
+    .view  = Render::View::World,
+    .layer = LAYER_GRID
+};
+
+constexpr Render::DrawParams DRAW_PARAMS_CONTENT = {
+    .view  = Render::View::World,
+    .layer = LAYER_CONTENT
+};
+
+constexpr Render::DrawParams DRAW_PARAMS_OVERLAY = {
+    .view  = Render::View::World,
+    .layer = LAYER_OVERLAY
+};
+
+constexpr Render::DrawParams DRAW_PARAMS_UI = {
+    .view  = Render::View::Screen,
+    .layer = 0
+};
 
 // -----------------------------------------------------------------------------
 // RendererExample
@@ -86,12 +107,13 @@ public:
     // OnInit
     // -------------------------------------------------------------------------
 
-    void on_init(Nezumi::Engine& engine) override {
+    void on_init(Engine& engine) override {
         Render::Renderer* r = engine.renderer();
 
         // The renderer makes a camera for each default view: View::World
         // (centered on the origin) and View::Screen (pixels, origin
         // bottom-left). Both are sized to the window every frame.
+        world_camera_  = r->get_view_camera(Render::View::World);
         screen_camera_ = r->get_view_camera(Render::View::Screen);
 
         // Setup sprite atlas
@@ -119,13 +141,13 @@ public:
     // No work required.
     // -------------------------------------------------------------------------
 
-    void on_tick(Nezumi::Engine& engine) override {}
+    void on_tick(Engine& engine) override {}
 
     // -------------------------------------------------------------------------
     // OnDraw
     // -------------------------------------------------------------------------
 
-    void on_draw(Nezumi::Engine& engine) override {
+    void on_draw(Engine& engine) override {
         Render::Renderer* r = engine.renderer();
 
         draw_menu_(r);
@@ -143,29 +165,26 @@ public:
     // On Exit
     // -------------------------------------------------------------------------
 
-    void on_exit(Nezumi::Engine& engine) override {
+    void on_exit(Engine& engine) override {
         engine.logger().info("RendererExample exited");
     }
 
 private:
 
     // -------------------------------------------------------------------------
-    // Helpers
+    // Draw Subtitle
     // -------------------------------------------------------------------------
 
-    // Point on a circle of `radius` around `center` at `angle` (radians).
-    static glm::vec2 on_circle_(glm::vec2 center, float radius, float angle) {
-        return center + radius * glm::vec2{ std::cos(angle), std::sin(angle) };
-    }
-
-    // Section subtitle (white, black outline, centered).
     void draw_subtitle_(
-        Render::Renderer* r, std::string_view text, glm::vec2 position
+        Render::Renderer* r,
+        std::string_view  text,
+        glm::vec2         position
     ) {
+        // Section subtitle (white, black outline, centered).
         r->draw_text(
-            text,
-            position,
-            *font_,
+            /*.text     = */text,
+            /*.position = */position,
+            /*.font     = */*font_,
             Render::TextStyle {
                 .size          = 24.0f,
                 .color         = Palette::White,
@@ -174,7 +193,7 @@ private:
                 .align         = Render::TextAlign::Center,
                 .valign        = Render::TextVAlign::Middle,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
     }
 
@@ -200,7 +219,7 @@ private:
                 .corner_radius = 0.0f,
                 .border_width  = 4.0f,
             },
-            Draw::Background
+            DRAW_PARAMS_BACKGROUND
         );
 
         // Menu Inline
@@ -212,7 +231,7 @@ private:
                 .corner_radius = 0.0f,
                 .border_width  = 2.0f,
             },
-            Draw::Grid
+            DRAW_PARAMS_GRID
         );
 
         // Grid
@@ -230,7 +249,7 @@ private:
                         },
                         .color   = GRID_COLORS[i],
                     },
-                    Draw::Grid,
+                    DRAW_PARAMS_GRID,
                     /*.filled = */true
                 );
             }
@@ -252,7 +271,7 @@ private:
                 .align          = Render::TextAlign::Center,
                 .valign         = Render::TextVAlign::Middle,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
     }
 
@@ -281,7 +300,7 @@ private:
                     .angle    = angle,
                     .color    = glm::mix(Palette::Cyan, Palette::Magenta, t),
                 },
-                Draw::Content
+                DRAW_PARAMS_CONTENT
             );
         }
     }
@@ -303,7 +322,7 @@ private:
                 .radius   = 48.0f,
                 .width    = 4.0f,
             },
-            Draw::Content,
+            DRAW_PARAMS_CONTENT,
             /*.filled = */false
         );
 
@@ -314,7 +333,7 @@ private:
                 .color    = Palette::Purple,
                 .radius   = 32.0f,
             },
-            Draw::Content,
+            DRAW_PARAMS_CONTENT,
             /*.filled = */true
         );
 
@@ -325,7 +344,7 @@ private:
                 .color    = { 0.0f, 1.0f, 1.0f, 0.25f },
                 .radius   = 20.0f,
             },
-            Draw::Overlay,
+            DRAW_PARAMS_OVERLAY,
             /*.filled = */true
         );
     }
@@ -356,7 +375,7 @@ private:
                     .color      = glm::mix(Palette::Cyan, Palette::Magenta, t),
                     .width      = 1.0f + static_cast<float>(i),
                 },
-                Draw::Content
+                DRAW_PARAMS_CONTENT
             );
         }
     }
@@ -396,7 +415,7 @@ private:
                                  std::max(x0, x1), std::max(y0, y1) },
                     .color   = q.color,
                 },
-                Draw::Content,
+                DRAW_PARAMS_CONTENT,
                 /*.filled = */true
             );
         }
@@ -408,7 +427,7 @@ private:
                              CENTER.x + 20.0f, CENTER.y + 20.0f },
                 .color   = Palette::GlassWhite,
             },
-            Draw::Overlay,
+            DRAW_PARAMS_OVERLAY,
             /*.filled = */true
         );
 
@@ -420,7 +439,7 @@ private:
                              CENTER.x + FRAME, CENTER.y + FRAME },
                 .color   = Palette::White,
             },
-            Draw::Content,
+            DRAW_PARAMS_CONTENT,
             /*.filled = */false
         );
     }
@@ -455,7 +474,7 @@ private:
                 .corner_radius = 0.0f,
                 .border_width  = 2.0f,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
 
         // Rounded corners, thick black border
@@ -467,7 +486,7 @@ private:
                 .corner_radius = 8.0f,
                 .border_width  = 4.0f,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
 
         // Pill (corner radius = half height), no border
@@ -479,7 +498,7 @@ private:
                 .corner_radius = HALF_H,
                 .border_width  = 0.0f,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
 
         // Border only (transparent fill)
@@ -491,7 +510,7 @@ private:
                 .corner_radius = 12.0f,
                 .border_width  = 3.0f,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
 
         // Translucent rounded overlay with a soft lavender border
@@ -503,7 +522,7 @@ private:
                 .corner_radius = 10.0f,
                 .border_width  = 2.0f,
             },
-            Draw::Overlay
+            DRAW_PARAMS_OVERLAY
         );
     }
 
@@ -521,7 +540,7 @@ private:
 
         const glm::vec4 tex_box = atlas_->tex_box(PIXEL_BOX);
 
-        Render::DrawParams params = Draw::Content;
+        Render::DrawParams params = DRAW_PARAMS_CONTENT;
         params.material = atlas_->material();
 
         struct SpriteDemo { float x; glm::vec4 tint; };
@@ -566,7 +585,7 @@ private:
                 .align  = Render::TextAlign::Center,
                 .valign = Render::TextVAlign::Middle,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
 
         // Thin
@@ -579,7 +598,7 @@ private:
                 .align  = Render::TextAlign::Center,
                 .valign = Render::TextVAlign::Middle,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
 
         // Outline
@@ -593,7 +612,7 @@ private:
                 .align         = Render::TextAlign::Center,
                 .valign        = Render::TextVAlign::Middle,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
 
         // Drop shadow: soft, offset outline down-right
@@ -608,7 +627,7 @@ private:
                 .align          = Render::TextAlign::Center,
                 .valign         = Render::TextVAlign::Middle,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
 
         // Centered multi-line
@@ -623,7 +642,7 @@ private:
                 .align         = Render::TextAlign::Center,
                 .valign        = Render::TextVAlign::Middle,
             },
-            Draw::Content
+            DRAW_PARAMS_CONTENT
         );
     }
 
@@ -664,7 +683,7 @@ private:
                 .align         = Render::TextAlign::Left,
                 .valign        = Render::TextVAlign::Top,
             },
-            Draw::Ui
+            DRAW_PARAMS_UI
         );
     }
 
@@ -674,6 +693,7 @@ private:
 
     // Owned by the renderer. SlotMap objects never move, so these stay valid
     // until removed, and this example never removes them.
+    Render::Camera* world_camera_  = nullptr;
     Render::Camera* screen_camera_ = nullptr;
     Render::Atlas*  atlas_         = nullptr;
     Render::Font*   font_          = nullptr;
@@ -685,8 +705,8 @@ private:
 
 int main() {
     try {
-        Nezumi::EngineConfig config = { .escape_exits = true };
-        Nezumi::Engine engine(config);
+        EngineConfig config = { .escape_exits = true };
+        Engine engine(config);
         RendererExample app;
         engine.run(app);
         return EXIT_SUCCESS;
