@@ -3,9 +3,11 @@
 //
 // This example shows how to use the Nezumi engine renderer.
 //
-// Press Escape (or close the window) to quit.
+// Controls: W/A/S/D or arrow keys pan, middle mouse drag pans, mouse wheel
+// zooms toward the cursor. Press Escape (or close the window) to quit.
 // =============================================================================
 
+#include "Nezumi/Control/CameraController.hpp"
 #include "Nezumi/Engine.hpp"
 #include "Nezumi/Render/View/ViewID.hpp"
 #include <array>       // array
@@ -15,6 +17,7 @@
 #include <cstdlib>     // EXIT_FAILURE, EXIT_SUCCESS
 #include <glm/glm.hpp> // vec2, vec4, mix
 #include <iostream>    // cerr
+#include <memory>      // unique_ptr, make_unique
 #include <numbers>     // numbers::pi_v
 #include <string_view> // string_view
 
@@ -116,6 +119,17 @@ public:
         world_camera_  = r->get_view_camera(Render::View::World);
         screen_camera_ = r->get_view_camera(Render::View::Screen);
 
+        // Drive the world camera from keyboard and mouse
+        camera_controller_ = std::make_unique<CameraController>(
+            /*.events   = */engine.event_bus(),
+            /*.renderer = */*r,
+            /*.camera   = */r->get_view(Render::View::World),
+            CameraControllerConfig{
+                .zoom_min = 0.5f,
+                .zoom_max = 4.0f,
+            }
+        );
+
         // Setup sprite atlas
         atlas_ = r->create_atlas(
             Render::AtlasConfig{
@@ -150,6 +164,9 @@ public:
     void on_draw(Engine& engine) override {
         Render::Renderer* r = engine.renderer();
 
+        // Per frame, not per tick: the camera is presentation, not simulation
+        camera_controller_->update(engine.clock().get_real_dt());
+
         draw_menu_(r);
         draw_arrows_(r);
         draw_circles_(r);
@@ -166,6 +183,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_exit(Engine& engine) override {
+        camera_controller_.reset(); // unsubscribe while the event bus is alive
         engine.logger().info("RendererExample exited");
     }
 
@@ -697,6 +715,8 @@ private:
     Render::Camera* screen_camera_ = nullptr;
     Render::Atlas*  atlas_         = nullptr;
     Render::Font*   font_          = nullptr;
+
+    std::unique_ptr<CameraController> camera_controller_ = nullptr;
 };
 
 // -----------------------------------------------------------------------------
