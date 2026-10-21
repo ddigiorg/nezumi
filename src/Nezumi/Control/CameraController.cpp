@@ -167,7 +167,7 @@ void CameraController::subscribe_() {
             if (Render::Camera* camera = get_camera_()) {
                 // Screen y points down and world y points up. Moving the
                 // camera opposite to the drag keeps the grabbed point under
-                // the cursor (translate divides by zoom).
+                // the cursor (translate converts pixels to world units).
                 camera->translate({ -e.rel_x, e.rel_y });
             }
         }

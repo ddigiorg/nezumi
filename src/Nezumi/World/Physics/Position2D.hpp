@@ -1,7 +1,8 @@
 // =============================================================================
 // Position2D.hpp
 //
-// Coordinates in the game world (tile units).
+// Coordinates in the game world, in tile-space: floor(x) is the tile column,
+// the fraction is the offset inside it. See Constants.hpp and TileCoord.hpp.
 //
 // FUTURE: replaced by fixed-point (24.8) positions. See ROADMAP.md.
 // =============================================================================

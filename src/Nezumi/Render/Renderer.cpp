@@ -25,8 +25,9 @@ Renderer::Renderer(RHI::Device& device, const RendererConfig& config)
     // Setup default cameras for the default views
     views_[View::World] = cameras_.create(
         CameraConfig{
-            .name   = "world-camera",
-            .origin = CameraOrigin::Centered,
+            .name            = "world-camera",
+            .origin          = CameraOrigin::Centered,
+            .pixels_per_unit = config.world_pixels_per_unit,
         }
     ).handle;
 

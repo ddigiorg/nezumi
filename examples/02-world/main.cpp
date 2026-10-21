@@ -1,15 +1,105 @@
 // =============================================================================
-// examples/02-world-2d/main.cpp
+// examples/02-world/main.cpp
+//
+// This example shows the World's tile-space convention and how to set up a
+// camera for it.
+//
+// - Every simulation position is in tiles: floor(x) is the tile column and
+//   the fraction is how far across it (see World/Constants.hpp).
+// - Sprites are drawn in tiles too. Their size in the atlas (64x64 px ground
+//   tiles, 64x128 px units) has nothing to do with their size in the world.
+// - The world camera decides how big a tile is on screen: TILE_PIXELS at
+//   zoom 1.0, scaled by the player's zoom.
+//
+// Controls: W/A/S/D or arrow keys pan, middle mouse drag pans, mouse wheel
+// zooms toward the cursor. Press Escape (or close the window) to quit.
 // =============================================================================
 
+#include "Nezumi/Control/CameraController.hpp"
 #include "Nezumi/Engine.hpp"
+#include "Nezumi/Input/Events/OnMouseMotion.hpp"
+#include "Nezumi/World/Physics/TileCoord.hpp"
 #include "Unit.hpp"
-#include <cstdlib>   // EXIT_FAILURE, EXIT_SUCCESS
-#include <exception> // exception
-#include <iostream>  // cerr
-#include <string>    // string, to_string
+#include <algorithm>   // max, min
+#include <array>       // array
+#include <cstdint>     // int32_t, uint32_t
+#include <cstdio>      // snprintf
+#include <cstdlib>     // EXIT_FAILURE, EXIT_SUCCESS
+#include <exception>   // exception
+#include <glm/glm.hpp> // vec2, vec4
+#include <iostream>    // cerr
+#include <memory>      // unique_ptr, make_unique
+#include <string>      // to_string
+#include <utility>     // swap
 
 using namespace Nezumi; // TODO: should examples be more explicit?
+
+// -----------------------------------------------------------------------------
+// Settings
+// -----------------------------------------------------------------------------
+
+// Screen pixels per tile at zoom 1.0
+static constexpr float TILE_PIXELS = 32.0f;
+
+// Units are spawned in [-SPAWN_RADIUS, SPAWN_RADIUS) tiles on each axis
+static constexpr float  SPAWN_RADIUS = 128.0f;
+static constexpr size_t UNIT_COUNT   = 20000;
+
+// -----------------------------------------------------------------------------
+// Atlas
+//
+// Pixel boxes in assets/graphics/atlas.png { x0, y0, x1, y1 }, y down.
+// -----------------------------------------------------------------------------
+
+namespace AtlasPixels {
+    // 64x64 px ground tiles, drawn 1x1 tile
+    constexpr glm::vec4 GrassDark  = {  64.0f, 256.0f, 128.0f, 320.0f };
+    constexpr glm::vec4 GrassLight = {  64.0f, 320.0f, 128.0f, 384.0f };
+
+    // 64x128 px unit frames, drawn 0.5x1 tile. One row of 5 headings per
+    // team: down, down-right, right, up-right, up (left ones are mirrored).
+    constexpr glm::vec2 UnitSize = { 64.0f, 128.0f };
+    constexpr std::array<glm::vec2, 4> UnitTeamOrigin = {{
+        {   0.0f,   0.0f }, // red
+        { 320.0f,   0.0f }, // purple
+        {   0.0f, 128.0f }, // blue
+        { 320.0f, 128.0f }, // teal
+    }};
+}
+
+// The atlas packs ground tiles edge to edge, so with Linear filtering a tile's
+// outermost texels blend with its neighbour's and show up as seams. Sampling
+// half a texel inside the box avoids that at every zoom (no mips yet).
+constexpr glm::vec4 inset_half_texel(glm::vec4 pixel_box) {
+    return pixel_box + glm::vec4{ 0.5f, 0.5f, -0.5f, -0.5f };
+}
+
+// Unit sprite size in tiles, anchored on its feet (the unit's position)
+static constexpr glm::vec4 UNIT_SPRITE_BOUNDS = { -0.25f, -0.25f, 0.25f, 0.75f };
+
+// -----------------------------------------------------------------------------
+// Draw Params
+// -----------------------------------------------------------------------------
+
+constexpr Render::DrawParams DRAW_PARAMS_GROUND = {
+    .view  = Render::View::World,
+    .layer = 0,
+};
+
+constexpr Render::DrawParams DRAW_PARAMS_UNITS = {
+    .view  = Render::View::World,
+    .layer = 1,
+};
+
+constexpr Render::DrawParams DRAW_PARAMS_DEBUG = {
+    .view  = Render::View::World,
+    .layer = 2,
+};
+
+constexpr Render::DrawParams DRAW_PARAMS_UI = {
+    .view  = Render::View::Screen,
+    .layer = 0,
+};
 
 // -----------------------------------------------------------------------------
 // WorldExample
@@ -23,41 +113,76 @@ public:
     // -------------------------------------------------------------------------
 
     void on_init(Nezumi::Engine& engine) override {
-        Nezumi::Logger& logger = engine.logger();
-        World&  world  = engine.world();
-        Render::Renderer* renderer = engine.renderer();
+        Nezumi::Logger&   logger = engine.logger();
+        World&            world  = engine.world();
+        Render::Renderer* r      = engine.renderer();
 
         logger.info("Hello, World!");
         logger.info("Press Escape or close the window to exit.");
 
-        // TODO: make size and position tile-space units
-        // TODO: add set_position()
-        // Render::Camera* player_camera = renderer->get_player_camera();
-        // player_camera->set_zoom(16.0f);
+        // World camera: 1 tile = TILE_PIXELS px at zoom 1.0 (also settable up
+        // front with EngineConfig::renderer.world_pixels_per_unit). The
+        // controller's zoom range is relative to that: 0.125 -> 4 px tiles,
+        // 4.0 -> 128 px tiles.
+        world_camera_  = r->get_view_camera(Render::View::World);
+        screen_camera_ = r->get_view_camera(Render::View::Screen);
+        world_camera_->set_pixels_per_unit(TILE_PIXELS);
 
-
-        SurfaceID surface_id = world.create_surface(
-            SurfaceConfig{
-                .name           = "surface-0",
-                .initial_chunks = {},
+        camera_controller_ = std::make_unique<CameraController>(
+            /*.events   = */engine.event_bus(),
+            /*.renderer = */*r,
+            /*.camera   = */r->get_view(Render::View::World),
+            CameraControllerConfig{
+                .zoom_init = 1.0f,
+                .zoom_min  = 0.125f,
+                .zoom_max  = 4.0f,
             }
         );
 
-        // EntityHandle e1 = world.create_entity<Unit>(
-        //     /*.surface  = */surface_id,
-        //     /*.position = */{ 16.0f, 16.0f },
-        //     /*.args     = */true
-        // );
+        // The controller tracks the cursor privately; keep our own copy for
+        // the "tile under cursor" readout
+        cursor_listener_ = engine.event_bus().subscribe<OnMouseMotion>(
+            [this](const OnMouseMotion& e) { cursor_ = { e.pos_x, e.pos_y }; }
+        );
 
-        for(size_t i = 0; i < 20000; i++) {
-            EntityHandle e1 = world.create_entity<Unit>(
-                /*.surface  = */surface_id,
+        atlas_ = r->create_atlas(
+            Render::AtlasConfig{
+                .name     = "world-atlas",
+                .filepath = "assets/graphics/atlas.png",
+            }
+        ).object;
+
+        tex_grass_dark_  = atlas_->tex_box(inset_half_texel(AtlasPixels::GrassDark ));
+        tex_grass_light_ = atlas_->tex_box(inset_half_texel(AtlasPixels::GrassLight));
+
+        font_ = r->create_font(
+            Render::FontConfig{
+                .name     = "world-font",
+                .filepath = "assets/fonts/CommitMono-1.143/CommitMono-400-Regular.otf"
+            }
+        ).object;
+
+        // Pre-create the chunks covering the spawn area so the ground is
+        // there even where no unit has walked yet
+        const ChunkSpan spawn_chunks = ChunkSpan::span_from_box(
+            Area2D(-SPAWN_RADIUS, -SPAWN_RADIUS, SPAWN_RADIUS, SPAWN_RADIUS));
+
+        surface_id_ = world.create_surface(
+            SurfaceConfig{
+                .name           = "surface-0",
+                .initial_chunks = spawn_chunks,
+            }
+        );
+
+        for (size_t i = 0; i < UNIT_COUNT; i++) {
+            world.create_entity<Unit>(
+                /*.surface  = */surface_id_,
                 /*.position = */{
                     // TODO: random positions should be from world not engine
-                    /*.x = */engine.random().get<float>(-16.0f, 16.0f),
-                    /*.y = */engine.random().get<float>(-16.0f, 16.0f),
+                    /*.x = */engine.random().get<float>(-SPAWN_RADIUS, SPAWN_RADIUS),
+                    /*.y = */engine.random().get<float>(-SPAWN_RADIUS, SPAWN_RADIUS),
                 },
-                /*.args     = */true
+                /*.team     = */static_cast<uint8_t>(i % AtlasPixels::UnitTeamOrigin.size())
             );
         }
     }
@@ -73,46 +198,35 @@ public:
     // -------------------------------------------------------------------------
 
     void on_draw(Nezumi::Engine& engine) override {
-        const World& world = engine.world();
-        Render::Renderer* renderer = engine.renderer();
+        Render::Renderer* r = engine.renderer();
 
-        world.each_surface([&](const Nezumi::Surface& surface){
-            surface.each_chunk([&](const Chunk& chunk){
+        // Per frame, not per tick: the camera is presentation, not simulation
+        camera_controller_->update(engine.clock().get_real_dt());
 
-                // Draw chunk
-                renderer->draw_rectangle(
-                    Render::Rectangle{
-                        .pos_box = chunk.bounds().to_vec4(),
-                        .color   = { 0.0f, 1.0f, 0.0f, 1.0f },
-                    },
-                    Render::DrawParams{
-                        .view  = 0,
-                        .layer = 0,
-                    }
-                );
+        const Nezumi::Surface* surface = engine.world().get_surface(surface_id_);
+        if (!surface) return;
 
-                // Draw chunk entities
-                chunk.visit_active_entities([&](const Nezumi::Entity& entity) {
-                    if (entity.is_pending_remove()) return true;
-                    renderer->draw_rectangle(
-                        Render::Rectangle{
-                            .pos_box = entity.collision_box().to_vec4(),
-                            .color   = { 1.0f, 0.0f, 0.0f, 1.0f },
-                        },
-                        Render::DrawParams{
-                            .view  = 0,
-                            .layer = 1,
-                        }
-                    );
-                    return true;
-                });
-            });
+        // Only visit chunks the camera can see
+        const glm::vec4 view = world_camera_->world_bounds();
+        const Area2D    view_area(view.x, view.y, view.z, view.w);
+        const ChunkSpan view_chunks = ChunkSpan::span_from_box(view_area);
+
+        surface->each_chunk_in(view_chunks, [&](const Chunk& chunk) {
+            draw_ground_(r, chunk, view_area);
+            draw_units_ (r, chunk);
+
+            // Chunk borders
+            r->draw_rectangle(
+                Render::Rectangle{
+                    .pos_box = chunk.bounds().to_vec4(),
+                    .color   = { 1.0f, 1.0f, 1.0f, 0.25f },
+                },
+                DRAW_PARAMS_DEBUG,
+                /*.filled = */false
+            );
         });
 
-        Nezumi::Engine::LoopStats stats = engine.get_stats();
-        std::cout << stats.tick_ms << std::endl;
-        std::cout << stats.draw_ms << std::endl;
-        std::cout << std::endl;
+        draw_hud_(r, engine);
     }
 
     // -------------------------------------------------------------------------
@@ -120,15 +234,164 @@ public:
     // -------------------------------------------------------------------------
 
     void on_exit(Nezumi::Engine& engine) override {
+        // Unsubscribe while the event bus is alive
+        engine.event_bus().unsubscribe(cursor_listener_);
+        camera_controller_.reset();
+
         Nezumi::Logger& log = engine.logger();
         Nezumi::Engine::LoopStats stats = engine.get_stats();
         log.info("Ran " + std::to_string(stats.tick_count) + " ticks.");
         log.info("Ran " + std::to_string(stats.draw_count) + " draws.");
         log.info("Goodbye!");
-
-        // std::cout << engine.world().surface_count() << std::endl;
-        // std::cout << engine.world().entity_count()  << std::endl;
     }
+
+private:
+
+    // -------------------------------------------------------------------------
+    // Draw Ground
+    //
+    // One 1x1 tile sprite per visible tile of the chunk, checkerboarded.
+    // Every ground sprite shares the layer, order and atlas material, so they
+    // all batch into one draw.
+    // -------------------------------------------------------------------------
+
+    void draw_ground_(Render::Renderer* r, const Chunk& chunk, const Area2D& view) {
+        const Area2D& bounds = chunk.bounds();
+
+        // Visible tiles of this chunk, [min, max] inclusive
+        const TileCoord min = TileCoord::from_position({
+            std::max(bounds.min.x, view.min.x),
+            std::max(bounds.min.y, view.min.y),
+        });
+        const TileCoord max = TileCoord::from_position({
+            std::min(bounds.max.x, view.max.x) - 0.001f,
+            std::min(bounds.max.y, view.max.y) - 0.001f,
+        });
+
+        Render::DrawParams params = DRAW_PARAMS_GROUND;
+        params.material = atlas_->material();
+
+        TileCoord tile;
+        for (tile.y = min.y; tile.y <= max.y; tile.y++) {
+            for (tile.x = min.x; tile.x <= max.x; tile.x++) {
+                r->draw_sprite(
+                    Render::Sprite{
+                        .pos_box = tile.bounds().to_vec4(),
+                        .tex_box = ((tile.x + tile.y) & 1) ? tex_grass_light_ : tex_grass_dark_,
+                    },
+                    params
+                );
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Draw Units
+    //
+    // Sorted by y (lower on screen draws on top). The frame faces the unit's
+    // heading; left-facing frames are the right-facing ones mirrored.
+    // -------------------------------------------------------------------------
+
+    void draw_units_(Render::Renderer* r, const Chunk& chunk) {
+        Render::DrawParams params = DRAW_PARAMS_UNITS;
+        params.material = atlas_->material();
+
+        chunk.visit_active_entities([&](const Nezumi::Entity& entity) {
+            if (entity.is_pending_remove())     return true;
+            if (!entity.is_type<Unit>())        return true;
+            const Unit& unit = static_cast<const Unit&>(entity);
+
+            const glm::vec2 pos = unit.position.to_vec2();
+            const glm::vec2 vel = unit.velocity.to_vec2();
+
+            // Heading column: 0 down, 1 down-right, 2 right, 3 up-right, 4 up
+            const int dx = (vel.x > 0.0f) - (vel.x < 0.0f);
+            const int dy = (vel.y > 0.0f) - (vel.y < 0.0f);
+            const int column = (dx == 0) ? (dy > 0 ? 4 : 0) : (dy + 2);
+
+            const glm::vec2 origin = AtlasPixels::UnitTeamOrigin[unit.team]
+                                   + glm::vec2{ column * AtlasPixels::UnitSize.x, 0.0f };
+            glm::vec4 tex_box = atlas_->tex_box({ origin, origin + AtlasPixels::UnitSize });
+            if (dx < 0) std::swap(tex_box.x, tex_box.z); // mirror
+
+            params.order = -static_cast<int32_t>(pos.y * 16.0f);
+
+            r->draw_sprite(
+                Render::Sprite{
+                    .pos_box = glm::vec4{ pos, pos } + UNIT_SPRITE_BOUNDS,
+                    .tex_box = tex_box,
+                },
+                params
+            );
+            return true;
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // Draw HUD
+    //
+    // Zoom, tile size on screen, and the tile under the cursor split into its
+    // integer tile and fraction, which is the tile-space convention in action.
+    // -------------------------------------------------------------------------
+
+    void draw_hud_(Render::Renderer* r, Nezumi::Engine& engine) {
+        const glm::vec2  world = world_camera_->screen_to_world(cursor_);
+        const Position2D pos   = { world.x, world.y };
+        const TileCoord  tile  = TileCoord::from_position(pos);
+        const Position2D frac  = TileCoord::fraction(pos);
+
+        const Nezumi::Engine::LoopStats& stats = engine.get_stats();
+
+        char text[256];
+        std::snprintf(text, sizeof text,
+            "zoom %.3f (%.1f px/tile)\n"
+            "cursor %.2f, %.2f\n"
+            "tile %d, %d + %.2f, %.2f\n"
+            "units %zu\n"
+            "tick %.2f ms  draw %.2f ms\n"
+            "objects %u  draw calls %u",
+            world_camera_->get_zoom(), world_camera_->get_scale(),
+            pos.x, pos.y,
+            tile.x, tile.y, frac.x, frac.y,
+            engine.world().entity_count(),
+            stats.tick_ms, stats.draw_ms,
+            r->stats().objects, r->stats().draw_calls
+        );
+
+        r->draw_text(
+            text,
+            { 8.0f, screen_camera_->get_size().y - 8.0f },
+            *font_,
+            Render::TextStyle {
+                .size          = 16.0f,
+                .color         = { 1.0f, 1.0f, 1.0f, 1.0f },
+                .outline_color = { 0.0f, 0.0f, 0.0f, 1.0f },
+                .outline_width = 3.0f,
+                .align         = Render::TextAlign::Left,
+                .valign        = Render::TextVAlign::Top,
+            },
+            DRAW_PARAMS_UI
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Members
+    // -------------------------------------------------------------------------
+
+    // Owned by the renderer. SlotMap objects never move, so these stay valid
+    Render::Camera* world_camera_  = nullptr;
+    Render::Camera* screen_camera_ = nullptr;
+    Render::Atlas*  atlas_         = nullptr;
+    Render::Font*   font_          = nullptr;
+
+    glm::vec4 tex_grass_dark_  = {};
+    glm::vec4 tex_grass_light_ = {};
+
+    std::unique_ptr<CameraController> camera_controller_ = nullptr;
+    EventListenerID                   cursor_listener_   = {};
+    glm::vec2                         cursor_            = { 0.0f, 0.0f }; // window pixels, y down
+
+    SurfaceID surface_id_ = {};
 };
 
 // -----------------------------------------------------------------------------
@@ -138,7 +401,7 @@ public:
 int main() {
     try {
         Nezumi::EngineConfig config = {};
-        config.window.title = "World2D Example";
+        config.window.title = "World Example";
         config.escape_exits = true;
 
         Nezumi::Engine engine(config);
