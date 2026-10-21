@@ -166,6 +166,29 @@ target_link_libraries(nezumi_world
 )
 
 # ------------------------------------------------------------------------------
+# Control
+#
+# Gameplay-facing controllers that turn input into actions on other subsystems
+# (e.g. CameraController drives a Render::Camera). Sits above Render and Input
+# so neither of those has to know about the other.
+# ------------------------------------------------------------------------------
+
+add_library(nezumi_control STATIC
+    Nezumi/Control/CameraController.cpp
+)
+
+target_compile_features(nezumi_control PUBLIC cxx_std_20)
+target_include_directories(nezumi_control PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(nezumi_control PRIVATE ${NEZUMI_WARNINGS})
+
+target_link_libraries(nezumi_control
+    PUBLIC
+        nezumi_core
+        nezumi_render
+        glm::glm
+)
+
+# ------------------------------------------------------------------------------
 # Engine
 # ------------------------------------------------------------------------------
 
@@ -179,6 +202,7 @@ target_compile_options(nezumi_engine PRIVATE ${NEZUMI_WARNINGS})
 
 target_link_libraries(nezumi_engine
     PUBLIC
+        nezumi_control
         nezumi_core
         nezumi_logger
         nezumi_rhi
