@@ -191,7 +191,7 @@ public:
     //
     // Default views (made by the constructor, unless replaced):
     //
-    // - View::World:  "world-camera"  (Centered)
+    // - View::World:  "world-camera"  (Centered, RendererConfig::world_pixels_per_unit)
     // - View::Screen: "screen-camera" (BottomLeft, 1 unit = 1 pixel)
     // -------------------------------------------------------------------------
 
