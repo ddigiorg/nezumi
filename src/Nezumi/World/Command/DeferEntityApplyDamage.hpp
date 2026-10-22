@@ -4,6 +4,7 @@
 
 #pragma once
 #include "Nezumi/World/Entity/EntityID.hpp"
+#include <cstdint> // uint16_t
 
 namespace Nezumi {
 

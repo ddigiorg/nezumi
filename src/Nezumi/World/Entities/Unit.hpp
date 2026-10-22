@@ -1,19 +1,40 @@
 // =============================================================================
 // Unit.hpp
 //
-// A unit that wanders around at walking speed. All sizes and speeds are in
-// tiles (see World/Constants.hpp), never pixels.
+// A mobile, damageable entity that follows UnitCommands. All sizes and speeds
+// are in tiles (see World/Constants.hpp), never pixels.
+//
+// Each tick the unit turns its command into a UnitState:
+//
+//   Command      No target in reach        Target in reach (see below)
+//   ----------   -----------------------   ---------------------------------
+//   Stop         Idle                      Moving (chase) / Attacking
+//   MoveTo       Moving, Idle on arrival   (ignores enemies)
+//   Attack       Idle (target gone)        Moving (chase) / Attacking
+//   AttackMove   Moving, Idle on arrival   Moving (chase) / Attacking
+//
+// "In reach" for Stop and AttackMove means an enemy inside aggro_radius. Those
+// targets are dropped once they leave it, so units don't chase across the
+// map. An Attack target is chased until it dies.
+//
+// Commands are set between ticks (by the app, or later a UnitGroup), never by
+// another entity while ticking: that would break the "write only yourself"
+// rule in Entity.hpp.
 // =============================================================================
 
 #pragma once
-#include "Nezumi/Core/Random.hpp"
-#include "Nezumi/World/Entity/Entity.hpp"
-#include "Nezumi/World/WorldContext.hpp"
-#include <cstdint> // uint8_t
+#include "Nezumi/World/Entities/UnitCommand.hpp"
+#include "Nezumi/World/Entities/UnitConfig.hpp"
+#include "Nezumi/World/Entities/UnitState.hpp"
+#include "Nezumi/World/Entity/EntityDamageable.hpp"
+#include "Nezumi/World/Entity/EntityFactionsMask.hpp"
+#include <cstdint> // uint16_t
 
 namespace Nezumi {
 
-class Unit : public Entity {
+struct WorldContext;
+
+class Unit : public EntityDamageable {
 public:
 
     // -------------------------------------------------------------------------
@@ -22,48 +43,81 @@ public:
 
     static constexpr EntityTypeID TYPE_ID{ 1 };
 
-    static constexpr float SPEED     = 2.0f;  // tiles per second
-    static constexpr int   TURN_ODDS = 60;    // 1 in N ticks picks a new heading (~1 s)
+    // Idle and attack-moving units look for enemies every N ticks, staggered
+    // by handle index so the searches spread evenly across ticks.
+    static constexpr uint16_t ACQUIRE_INTERVAL = 60; // 1.0 s at 60 UPS
+
+    // A move ends this close to its destination (tiles)
+    static constexpr float ARRIVE_DISTANCE = 0.05f;
 
     // -------------------------------------------------------------------------
     // Construction & Destruction
     // -------------------------------------------------------------------------
 
-    explicit Unit(uint8_t team) : team(team) {
-        this->set_active();
-        this->set_tickable();
-
-        // Half a tile square, centered on the unit's feet
-        collision_bounds = { -0.25f, -0.25f, 0.25f, 0.25f };
-    };
+    // `config` must outlive the unit
+    Unit(const UnitConfig& config, EntityFactionsMask factions);
 
     // -------------------------------------------------------------------------
     // Tick
     // -------------------------------------------------------------------------
 
-    void tick(WorldContext& ctx) override {
-        if (started_ && ctx.random->get<int>(0, TURN_ODDS - 1) != 0) return;
-        started_ = true;
+    void tick(WorldContext& ctx) override;
 
-        // One of 8 directions, or standing still. Only velocity is written
-        // here: the movement phase moves the unit and updates its chunk.
-        Position2D dir = {
-            static_cast<float>(ctx.random->get<int>(-1, 1)),
-            static_cast<float>(ctx.random->get<int>(-1, 1)),
-        };
-        if (dir.x != 0.0f && dir.y != 0.0f) dir *= 0.70710678f; // diagonals not faster
-        velocity = dir * SPEED;
-    }
+    // -------------------------------------------------------------------------
+    // Commands
+    // -------------------------------------------------------------------------
 
-    uint8_t team = 0;
+    void issue(const UnitCommand& cmd) { command_ = cmd; target_ = cmd.target; }
+
+    void stop       ()                    { issue(UnitCommand::stop());                }
+    void move_to    (Position2D position) { issue(UnitCommand::move_to(position));     }
+    void attack     (EntityHandle target) { issue(UnitCommand::attack(target));        }
+    void attack_move(Position2D position) { issue(UnitCommand::attack_move(position)); }
+
+    // -------------------------------------------------------------------------
+    // Observers
+    // -------------------------------------------------------------------------
+
+    const UnitConfig&  config()  const { return *config_; }
+    const UnitCommand& command() const { return command_; }
+    UnitState          state()   const { return state_;   }
+    EntityHandle       target()  const { return target_;  }
+
+    // Unit vector the unit faces (last movement or attack direction)
+    Position2D         facing()  const { return facing_;  }
 
 private:
+
+    // -------------------------------------------------------------------------
+    // Behaviors
+    // -------------------------------------------------------------------------
+
+    // Current target if it is still alive (and, unless `leash` is 0, within
+    // `leash` tiles), otherwise clears it and returns nullptr.
+    const Entity* resolve_target_(WorldContext& ctx, float leash);
+
+    // Nearest enemy inside aggro_radius, searched every ACQUIRE_INTERVAL ticks.
+    const Entity* acquire_target_(WorldContext& ctx);
+
+    // Chase `target` into attack range, then hit it whenever off cooldown.
+    void engage_(WorldContext& ctx, const Entity& target);
+
+    // Set velocity toward `destination`, stopping `stop_distance` short of
+    // it. Returns true (and zero velocity) once there.
+    bool move_toward_(WorldContext& ctx, Position2D destination, float stop_distance);
+
+    void face_(Position2D delta, float distance);
 
     // -------------------------------------------------------------------------
     // Members
     // -------------------------------------------------------------------------
 
-    bool started_ = false;
+    const UnitConfig* config_          = nullptr;            //  8 B
+    UnitCommand       command_         = {};                 // 20 B
+    EntityHandle      target_          = {};                 //  8 B  engaged target
+    Position2D        facing_          = { 0.0f, -1.0f };    //  8 B  down
+    uint16_t          attack_cooldown_ = 0;                  //  2 B  ticks until next hit
+    UnitState         state_           = UnitState::Idle;    //  1 B
 };
 
 } // namespace Nezumi

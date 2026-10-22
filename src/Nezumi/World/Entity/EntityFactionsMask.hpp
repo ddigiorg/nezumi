@@ -2,11 +2,21 @@
 // EntityFactionsMask.hpp
 //
 // Entity factions.
+//
+// An entity stores its factions as a mask so friend/enemy checks are one AND.
+// Per-faction data (pheromone grids, stats, AI) lives in arrays indexed by
+// FactionIndex, the bit position in the mask:
+//
+//   std::array<PheromoneGrid, MAX_FACTIONS> pheromones;
+//   pheromones[unit.faction_index()].deposit(...);
 // =============================================================================
 
 #pragma once
 #include "Nezumi/Core/EnumClassFlags.hpp"
-#include <cstdint> // uint16_t
+#include <bit>     // countr_zero, has_single_bit
+#include <cassert> // assert
+#include <cstddef> // size_t
+#include <cstdint> // uint8_t, uint16_t
 
 namespace Nezumi {
 
@@ -28,8 +38,40 @@ enum class EntityFactionsMask : std::uint16_t {
     Faction13 = 1u << 13,
     Faction14 = 1u << 14,
     Faction15 = 1u << 15,
+    All       = 0xFFFFu,
 };
 
 ENUM_CLASS_FLAGS(EntityFactionsMask);
+
+// -----------------------------------------------------------------------------
+// Faction Index
+// -----------------------------------------------------------------------------
+
+using FactionIndex = std::uint8_t;
+
+inline constexpr std::size_t MAX_FACTIONS = 16;
+
+// Single-faction mask for an index: faction_bit(3) == Faction03
+constexpr EntityFactionsMask faction_bit(FactionIndex index) {
+    assert(index < MAX_FACTIONS && "FactionIndex out of range");
+    return static_cast<EntityFactionsMask>(1u << index);
+}
+
+// Index of a single-faction mask: faction_index(Faction03) == 3
+constexpr FactionIndex faction_index(EntityFactionsMask mask) {
+    const auto bits = static_cast<std::uint16_t>(mask);
+    assert(std::has_single_bit(bits) && "Mask must hold exactly one faction");
+    return static_cast<FactionIndex>(std::countr_zero(bits));
+}
+
+// Visit the index of every faction in a mask, lowest first
+template <typename Fn>
+constexpr void each_faction(EntityFactionsMask mask, Fn&& fn) {
+    auto bits = static_cast<std::uint16_t>(mask);
+    while (bits) {
+        fn(static_cast<FactionIndex>(std::countr_zero(bits)));
+        bits &= static_cast<std::uint16_t>(bits - 1u);
+    }
+}
 
 } // namespace Nezumi

@@ -149,6 +149,7 @@ target_link_libraries(nezumi_render
 
 add_library(nezumi_world STATIC
     Nezumi/World/Chunk/Chunk.cpp
+    Nezumi/World/Entities/Unit.cpp
     Nezumi/World/Physics/Sector.cpp
     Nezumi/World/Surface/Surface.cpp
     Nezumi/World/World.cpp

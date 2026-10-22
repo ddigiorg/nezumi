@@ -20,6 +20,7 @@
 #include "Nezumi/World/WorldContext.hpp"
 #include <cassert> // assert
 #include <cstddef> // size_t
+#include <cstdint> // uint16_t
 #include <vector>  // vector
 
 namespace Nezumi {
@@ -85,12 +86,13 @@ public:
 
     void set_entity_active(EntityHandle handle, bool active);
 
-    // TODO
-    //
-    // void damage_entity(
-    //     EntityHandle target,
-    //     uint16_t     amount,
-    //     EntityHandle source = {});
+    // Deal `amount` damage to `target` in the next damage phase (this tick's
+    // if called while ticking). Ignored if the target is gone or not
+    // damageable by then. A target whose health reaches 0 is removed.
+    void damage_entity(
+        EntityHandle target,
+        uint16_t     amount,
+        EntityHandle source = {});
 
     Entity* get_entity(EntityHandle handle) {
         return entities_.get(handle);
@@ -141,7 +143,7 @@ private:
     void apply_commands_     ();
     void update_activation_  ();
     void tick_entities_      (WorldContext& ctx);
-    // void resolve_damage_     (); // TODO
+    void apply_damage_       ();
     void integrate_movement_ (float dt);
     void sweep_sectors_      ();
 
