@@ -42,7 +42,7 @@ public:
 
     // Move by `delta` screen pixels (y up), so the distance on screen is the
     // same at every zoom level.
-    void translate   (glm::vec2 delta   );
+    void translate(glm::vec2 delta);
 
     void set_position       (glm::vec2 position);
     void set_size           (glm::vec2 size    );

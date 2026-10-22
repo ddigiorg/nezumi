@@ -11,14 +11,23 @@
 #include "Nezumi/World/WorldContext.hpp"
 #include <cstdint> // uint8_t
 
-using namespace Nezumi;
+namespace Nezumi {
 
-class Unit : public Nezumi::Entity {
+class Unit : public Entity {
 public:
+
+    // -------------------------------------------------------------------------
+    // Statics
+    // -------------------------------------------------------------------------
+
     static constexpr EntityTypeID TYPE_ID{ 1 };
 
     static constexpr float SPEED     = 2.0f;  // tiles per second
     static constexpr int   TURN_ODDS = 60;    // 1 in N ticks picks a new heading (~1 s)
+
+    // -------------------------------------------------------------------------
+    // Construction & Destruction
+    // -------------------------------------------------------------------------
 
     explicit Unit(uint8_t team) : team(team) {
         this->set_active();
@@ -27,6 +36,10 @@ public:
         // Half a tile square, centered on the unit's feet
         collision_bounds = { -0.25f, -0.25f, 0.25f, 0.25f };
     };
+
+    // -------------------------------------------------------------------------
+    // Tick
+    // -------------------------------------------------------------------------
 
     void tick(WorldContext& ctx) override {
         if (started_ && ctx.random->get<int>(0, TURN_ODDS - 1) != 0) return;
@@ -45,5 +58,12 @@ public:
     uint8_t team = 0;
 
 private:
+
+    // -------------------------------------------------------------------------
+    // Members
+    // -------------------------------------------------------------------------
+
     bool started_ = false;
 };
+
+} // namespace Nezumi

@@ -16,11 +16,11 @@
 // =============================================================================
 
 #include "Nezumi/Control/CameraController.hpp"
-#include "Nezumi/Engine.hpp"
+#include "Nezumi/World/Entities/Unit.hpp"
 #include "Nezumi/Input/Events/OnMouseMotion.hpp"
 #include "Nezumi/World/Physics/Area2D.hpp"
 #include "Nezumi/World/Physics/TileCoord.hpp"
-#include "Unit.hpp"
+#include "Nezumi/Engine.hpp"
 #include <algorithm>   // max, min
 #include <array>       // array
 #include <cstdint>     // int32_t, uint32_t
@@ -116,25 +116,20 @@ public:
     // -------------------------------------------------------------------------
 
     void on_init(Nezumi::Engine& engine) override {
-        Nezumi::Logger&   logger = engine.logger();
-        World&            world  = engine.world();
-        Render::Renderer* r      = engine.renderer();
+        Nezumi::Logger&   logger   = engine.logger();
+        Nezumi::World&    world    = engine.world();
+        Render::Renderer* renderer = engine.renderer();
 
-        logger.info("Hello, World!");
-        logger.info("Press Escape or close the window to exit.");
-
-        // World camera: 1 tile = TILE_PIXELS px at zoom 1.0 (also settable up
-        // front with EngineConfig::renderer.world_pixels_per_unit). The
-        // controller's zoom range is relative to that: 0.125 -> 4 px tiles,
-        // 4.0 -> 128 px tiles.
-        world_camera_  = r->get_view_camera(Render::View::World);
-        screen_camera_ = r->get_view_camera(Render::View::Screen);
+        // Setup cameras
+        world_camera_  = renderer->get_view_camera(Render::View::World );
+        screen_camera_ = renderer->get_view_camera(Render::View::Screen);
         world_camera_->set_pixels_per_unit(TILE_PIXELS);
 
+        // Setup camera controllers
         camera_controller_ = std::make_unique<CameraController>(
             /*.events   = */engine.event_bus(),
-            /*.renderer = */*r,
-            /*.camera   = */r->get_view(Render::View::World),
+            /*.renderer = */*renderer,
+            /*.camera   = */renderer->get_view(Render::View::World),
             CameraControllerConfig{
                 .zoom_init = 1.0f,
                 .zoom_min  = 0.125f,
@@ -148,7 +143,8 @@ public:
             [this](const OnMouseMotion& e) { cursor_ = { e.pos_x, e.pos_y }; }
         );
 
-        atlas_ = r->create_atlas(
+        // Setup sprite atlas
+        atlas_ = renderer->create_atlas(
             Render::AtlasConfig{
                 .name     = "world-atlas",
                 .filepath = "assets/graphics/atlas.png",
@@ -158,7 +154,8 @@ public:
         tex_grass_dark_  = atlas_->tex_box(inset_half_texel(AtlasPixels::GrassDark ));
         tex_grass_light_ = atlas_->tex_box(inset_half_texel(AtlasPixels::GrassLight));
 
-        font_ = r->create_font(
+        // Setup font
+        font_ = renderer->create_font(
             Render::FontConfig{
                 .name     = "world-font",
                 .filepath = "assets/fonts/CommitMono-1.143/CommitMono-400-Regular.otf"
@@ -168,7 +165,13 @@ public:
         // Pre-create the chunks covering the spawn area so the ground is
         // there even where no unit has walked yet
         const ChunkSpan spawn_chunks = ChunkSpan::span_from_box(
-            Area2D(-SPAWN_RADIUS, -SPAWN_RADIUS, SPAWN_RADIUS, SPAWN_RADIUS));
+            Area2D(
+                /*.min_x = */-SPAWN_RADIUS,
+                /*.min_y = */-SPAWN_RADIUS,
+                /*.max_x = */ SPAWN_RADIUS,
+                /*.max_y = */ SPAWN_RADIUS
+            )
+        );
 
         surface_id_ = world.create_surface(
             SurfaceConfig{
@@ -188,6 +191,9 @@ public:
                 /*.team     = */static_cast<uint8_t>(i % AtlasPixels::UnitTeamOrigin.size())
             );
         }
+
+        logger.info("World Example");
+        logger.info("Press Escape or close the window to exit.");
     }
 
     // -------------------------------------------------------------------------
