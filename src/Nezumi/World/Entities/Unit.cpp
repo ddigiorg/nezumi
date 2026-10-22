@@ -8,6 +8,7 @@
 #include "Nezumi/World/WorldContext.hpp"
 #include <cassert> // assert
 #include <cmath>   // sqrt
+#include <cstdint> // UINT16_MAX
 
 namespace Nezumi {
 
@@ -35,6 +36,8 @@ Unit::Unit(const UnitConfig& config, EntityFactionsMask factions)
 void Unit::tick(WorldContext& ctx) {
     if (attack_cooldown_ > 0) attack_cooldown_--;
     velocity = {};
+
+    const UnitState prev_state = state_;
 
     const float aggro = config_->aggro_radius;
 
@@ -78,6 +81,9 @@ void Unit::tick(WorldContext& ctx) {
 
     // A command that completed this tick leaves the unit standing still
     if (velocity.is_zero() && state_ == UnitState::Moving) state_ = UnitState::Idle;
+
+    if (state_ != prev_state)  state_ticks_ = 0;
+    else if (state_ticks_ < UINT16_MAX) state_ticks_++;
 }
 
 // -----------------------------------------------------------------------------

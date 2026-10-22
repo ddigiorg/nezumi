@@ -7,6 +7,8 @@
 //   middle of the map and fight whoever they meet. Each unit keeps its offset
 //   from its army's center, so armies arrive in formation instead of in a
 //   line (a stand-in for what a UnitGroup will do).
+// - Units left idle for IDLE_REGROUP_TICKS (survivors whose fight ended, or
+//   who arrived with nobody in sight) attack-move back to the middle.
 // - Each army mixes two UnitConfigs: melee soldiers and ranged archers. The
 //   configs are plain data; every unit just points at one.
 // - Units find enemies with Surface::find_nearest_entity and deal damage
@@ -63,6 +65,10 @@ static constexpr float  ARMY_HALF_SIZE = 8.0f;
 static constexpr size_t ARCHER_EVERY   = 4; // every 4th unit is an archer
 
 static constexpr float MAP_RADIUS = 64.0f; // ground pre-created in [-R, R)
+
+// Idle units with no target regroup at the middle after this long
+static constexpr uint16_t   IDLE_REGROUP_TICKS = 180; // 3 s at 60 UPS
+static constexpr Position2D REGROUP_POSITION   = { 0.0f, 0.0f };
 
 // -----------------------------------------------------------------------------
 // Unit Configs
@@ -268,6 +274,14 @@ public:
             command_formation_move_(engine.world(), *pending_move_);
             pending_move_.reset();
         }
+
+        // Idle means no target in aggro range: nothing left to fight here
+        for_each_unit_(engine.world(), [&](Unit& unit) {
+            if (unit.state() != UnitState::Idle)           return;
+            if (unit.state_ticks() < IDLE_REGROUP_TICKS)   return;
+            if (unit.at(REGROUP_POSITION))                 return; // already there
+            unit.attack_move(REGROUP_POSITION);
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -368,13 +382,15 @@ private:
         });
     }
 
-    // Every living unit we spawned. Handles of dead units resolve to nullptr
-    // and are dropped here.
+    // Every unit we spawned that hasn't died, including ones that join the
+    // world next tick (not is_alive() yet, but they can take commands). Dead
+    // units are dropped here: their handles resolve to nullptr, or they are
+    // pending removal.
     template <typename Fn>
     void for_each_unit_(Nezumi::World& world, Fn&& fn) {
         std::erase_if(units_, [&](EntityHandle handle) {
             Unit* unit = world.get_entity_as<Unit>(handle);
-            if (!unit || !unit->is_alive()) return true;
+            if (!unit || unit->is_pending_remove()) return true;
             fn(*unit);
             return false;
         });

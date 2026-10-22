@@ -81,10 +81,15 @@ public:
     const UnitConfig&  config()  const { return *config_; }
     const UnitCommand& command() const { return command_; }
     UnitState          state()   const { return state_;   }
+
     EntityHandle       target()  const { return target_;  }
 
     // Unit vector the unit faces (last movement or attack direction)
     Position2D         facing()  const { return facing_;  }
+
+    // Ticks spent in the current state (saturates at 65535, ~18 min at 60 UPS).
+    // Lets the app react to long idles, and the future Animation pick frames.
+    uint16_t           state_ticks() const { return state_ticks_; }
 
 private:
 
@@ -117,6 +122,7 @@ private:
     EntityHandle      target_          = {};                 //  8 B  engaged target
     Position2D        facing_          = { 0.0f, -1.0f };    //  8 B  down
     uint16_t          attack_cooldown_ = 0;                  //  2 B  ticks until next hit
+    uint16_t          state_ticks_     = 0;                  //  2 B  ticks in state_
     UnitState         state_           = UnitState::Idle;    //  1 B
 };
 
