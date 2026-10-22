@@ -18,6 +18,7 @@
 #include "Nezumi/Control/CameraController.hpp"
 #include "Nezumi/Engine.hpp"
 #include "Nezumi/Input/Events/OnMouseMotion.hpp"
+#include "Nezumi/World/Physics/Area2D.hpp"
 #include "Nezumi/World/Physics/TileCoord.hpp"
 #include "Unit.hpp"
 #include <algorithm>   // max, min
@@ -40,6 +41,8 @@ using namespace Nezumi; // TODO: should examples be more explicit?
 
 // Screen pixels per tile at zoom 1.0
 static constexpr float TILE_PIXELS = 32.0f;
+static constexpr float TILE_FRACTION_1 = 1.0f / TILE_PIXELS;
+static constexpr float TILE_FRACTION_2 = 1.0f / TILE_PIXELS;
 
 // Units are spawned in [-SPAWN_RADIUS, SPAWN_RADIUS) tiles on each axis
 static constexpr float  SPAWN_RADIUS = 128.0f;
@@ -216,13 +219,17 @@ public:
             draw_units_ (r, chunk);
 
             // Chunk borders
-            r->draw_rectangle(
-                Render::Rectangle{
-                    .pos_box = chunk.bounds().to_vec4(),
-                    .color   = { 1.0f, 1.0f, 1.0f, 0.25f },
+            Area2D bounds = chunk.bounds();
+            bounds.grow(TILE_FRACTION_1);
+
+            r->draw_rectangle_sdf(
+                Render::RectangleSDF{
+                    .pos_box      = bounds.to_vec4(),
+                    .color        = { 0.0f, 0.0f, 0.0f, 0.0f },
+                    .border_color = { 0.0f, 0.0f, 0.0f, 1.0f },
+                    .border_width = TILE_FRACTION_2,
                 },
-                DRAW_PARAMS_DEBUG,
-                /*.filled = */false
+                DRAW_PARAMS_DEBUG
             );
         });
 

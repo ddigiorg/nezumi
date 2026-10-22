@@ -65,12 +65,27 @@ struct Area2D {
     // Arithmetic
     // -------------------------------------------------------------------------
 
+    // Movement
     constexpr Area2D operator+(Position2D p) const { return { min + p, max + p }; }
     constexpr Area2D operator-(Position2D p) const { return { min - p, max - p }; }
 
+    // Size
     constexpr Area2D& operator+=(Position2D p) { min += p; max += p; return *this; }
     constexpr Area2D& operator-=(Position2D p) { min -= p; max -= p; return *this; }
 
+    constexpr Area2D& grow(float factor) {
+        min -= factor;
+        max += factor;
+        return *this;
+    }
+
+    constexpr Area2D& shrink(float factor) {
+        min += factor;
+        max -= factor;
+        return *this;
+    }
+
+    // Comparison
     constexpr bool operator==(const Area2D&) const = default;
 };
 
