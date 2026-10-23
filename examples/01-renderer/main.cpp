@@ -24,6 +24,20 @@
 using namespace Nezumi; // TODO: should examples be more explicit?
 
 // -----------------------------------------------------------------------------
+// Input Actions
+//
+// Bound to keys in on_init. The engine names no actions: each game (here, each
+// example) declares its own.
+// -----------------------------------------------------------------------------
+
+namespace Action {
+    inline constexpr ActionID PanLeft  = 0;
+    inline constexpr ActionID PanRight = 1;
+    inline constexpr ActionID PanDown  = 2;
+    inline constexpr ActionID PanUp    = 3;
+}
+
+// -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
 
@@ -119,14 +133,26 @@ public:
         world_camera_  = r->get_view_camera(Render::View::World);
         screen_camera_ = r->get_view_camera(Render::View::Screen);
 
-        // Drive the world camera from keyboard and mouse
+        // Drive the world camera from keyboard and mouse. The keys that pan
+        // it are bound to actions here.
+        InputMap& input = engine.input();
+        input.bind(Action::PanLeft,  { ScanCode::A, ScanCode::Left  });
+        input.bind(Action::PanRight, { ScanCode::D, ScanCode::Right });
+        input.bind(Action::PanDown,  { ScanCode::S, ScanCode::Down  });
+        input.bind(Action::PanUp,    { ScanCode::W, ScanCode::Up    });
+
         camera_controller_ = std::make_unique<CameraController>(
             /*.events   = */engine.event_bus(),
+            /*.input    = */input,
             /*.renderer = */*r,
             /*.camera   = */r->get_view(Render::View::World),
             CameraControllerConfig{
-                .zoom_min = 0.5f,
-                .zoom_max = 4.0f,
+                .zoom_min  = 0.5f,
+                .zoom_max  = 4.0f,
+                .pan_left  = Action::PanLeft,
+                .pan_right = Action::PanRight,
+                .pan_down  = Action::PanDown,
+                .pan_up    = Action::PanUp,
             }
         );
 

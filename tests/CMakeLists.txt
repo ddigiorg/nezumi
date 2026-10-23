@@ -86,6 +86,7 @@ endfunction()
 # add_test_exe(test_event_bus)
 # add_test_exe(test_logger)
 # add_test_exe(test_subsystems)
+add_test_exe(test_input_map)
 add_test_exe(test_unit_group)
 
 # add_test_exe(test_window   NEEDS_DISPLAY)
