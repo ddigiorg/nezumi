@@ -16,6 +16,19 @@
 
 namespace Nezumi::RHI::GL {
 
+namespace {
+
+// Tells the driver the listed attachments of the bound draw framebuffer
+// needn't be kept. Only a hint, so skipped without GL_ARB_invalidate_subdata
+// (core in 4.3).
+void invalidate(const GLenum* attachments, GLsizei count) {
+    if (count > 0 && GLAD_GL_ARB_invalidate_subdata) {
+        glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, count, attachments);
+    }
+}
+
+} // namespace
+
 // =============================================================================
 // Replay State
 //
@@ -51,6 +64,10 @@ struct GLCommandEncoder::ReplayState {
     // Vertex buffers must be (re)attached to the current pipeline's VAO.
     bool vertex_bindings_dirty = true;
 
+    // first_instance the per-instance attributes were last pointed at (see
+    // the draws below).
+    std::uint32_t bound_first_instance = 0;
+
     // Layout of the bind group bound at each index (null: none, or disturbed
     // by a pipeline switch), and the layouts of the last pipeline bound.
     // GL doesn't need these; they enforce the RHI's compatibility rule so
@@ -65,6 +82,7 @@ struct GLCommandEncoder::ReplayState {
         index_buffer = {};
         index_offset = 0;
         vertex_bindings_dirty = true;
+        bound_first_instance  = 0;
         bound_layouts.fill({});
         pipeline_layouts.fill({});
         have_pipeline_layouts = false;
@@ -325,7 +343,7 @@ void GLCommandEncoder::replay_(
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
 
-    if (state.device.debug() && c.name.length > 0) {
+    if (state.device.debug() && GLAD_GL_KHR_debug && c.name.length > 0) {
         glPushDebugGroup(
             GL_DEBUG_SOURCE_APPLICATION, 0,
             static_cast<GLsizei>(c.name.length), view_(c.name).data()
@@ -337,7 +355,7 @@ void GLCommandEncoder::replay_(
     // (see CommandEncoder.hpp). The scissor test stays enabled; a full-size
     // scissor rect is the same as no scissor.
     glViewport(0, 0, width, height);
-    glDepthRangef(0.0f, 1.0f);
+    glDepthRange(0.0, 1.0);
     glEnable(GL_SCISSOR_TEST);
     glScissor(0, 0, width, height);
 
@@ -357,7 +375,7 @@ void GLCommandEncoder::replay_(
                     a.clear_color.b, a.clear_color.a
                 };
                 glColorMaski(i, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-                glClearNamedFramebufferfv(fbo, GL_COLOR, static_cast<GLint>(i), rgba);
+                glClearBufferfv(GL_COLOR, static_cast<GLint>(i), rgba);
                 break;
             }
             case LoadOp::DontCare:
@@ -375,7 +393,7 @@ void GLCommandEncoder::replay_(
                     break;
                 case LoadOp::Clear:
                     glDepthMask(GL_TRUE);
-                    glClearNamedFramebufferfv(fbo, GL_DEPTH, 0, &a.clear_depth);
+                    glClearBufferfv(GL_DEPTH, 0, &a.clear_depth);
                     break;
                 case LoadOp::DontCare:
                     discard[discard_count++] = GL_DEPTH_ATTACHMENT;
@@ -390,7 +408,7 @@ void GLCommandEncoder::replay_(
                 case LoadOp::Clear: {
                     const GLint stencil = a.clear_stencil;
                     glStencilMask(0xFF);
-                    glClearNamedFramebufferiv(fbo, GL_STENCIL, 0, &stencil);
+                    glClearBufferiv(GL_STENCIL, 0, &stencil);
                     break;
                 }
                 case LoadOp::DontCare:
@@ -400,9 +418,7 @@ void GLCommandEncoder::replay_(
         }
     }
 
-    if (discard_count > 0) {
-        glInvalidateNamedFramebufferData(fbo, discard_count, discard);
-    }
+    invalidate(discard, discard_count);
 
     // The clears above changed write masks without going through the cache.
     state.device.state_cache().write_masks_changed();
@@ -431,9 +447,7 @@ void GLCommandEncoder::replay_(const cmd::EndRenderPass&, ReplayState& state) {
             }
         }
 
-        if (discard_count > 0) {
-            glInvalidateNamedFramebufferData(state.fbo, discard_count, discard);
-        }
+        invalidate(discard, discard_count);   // state.fbo is still bound
     }
 
     if (state.pass_group) glPopDebugGroup();
@@ -565,12 +579,15 @@ void GLCommandEncoder::replay_(const cmd::SetBindGroup& c, ReplayState& state) {
                     return;
                 }
 
+                if (!uniform) {   // unreachable: GLDevice rejects storage layouts
+                    logger_.error("set_bind_group('{}'): storage buffers need OpenGL 4.3", group->name);
+                    return;
+                }
+
                 std::uint64_t offset = entry.offset;
                 if (entry.has_dynamic_offset) {
                     const std::uint32_t extra     = dynamic[next++];
-                    const std::uint32_t alignment = uniform
-                        ? state.device.info().uniform_buffer_offset_alignment
-                        : state.device.binding_limits().storage_buffer_offset_alignment;
+                    const std::uint32_t alignment = state.device.info().uniform_buffer_offset_alignment;
                     if (alignment && extra % alignment != 0) {
                         logger_.error("set_bind_group('{}'): dynamic offset {} isn't a multiple of {}",
                                       group->name, extra, alignment);
@@ -584,8 +601,8 @@ void GLCommandEncoder::replay_(const cmd::SetBindGroup& c, ReplayState& state) {
                     }
                 }
 
-                glBindBufferRange(uniform ? GL_UNIFORM_BUFFER : GL_SHADER_STORAGE_BUFFER, point,
-                                  buffer->id, static_cast<GLintptr>(offset),
+                glBindBufferRange(GL_UNIFORM_BUFFER, point, buffer->id,
+                                  static_cast<GLintptr>(offset),
                                   static_cast<GLsizeiptr>(entry.size));
                 break;
             }
@@ -599,14 +616,14 @@ void GLCommandEncoder::replay_(const cmd::SetBindGroup& c, ReplayState& state) {
                     return;
                 }
 
-                if (entry.type == BindType::SampledTexture) {
-                    glBindTextureUnit(point, texture->id);
-                    glBindSampler(point, sampler);      // 0 = the texture's own state
-                } else {
-                    const bool layered = texture->type != TextureType::Texture2D;
-                    glBindImageTexture(point, texture->id, 0, layered ? GL_TRUE : GL_FALSE, 0,
-                                       GL_READ_WRITE, to_gl_internal_format(texture->format));
+                if (entry.type == BindType::StorageTexture) {   // unreachable, as above
+                    logger_.error("set_bind_group('{}'): storage textures need OpenGL 4.2", group->name);
+                    return;
                 }
+
+                glActiveTexture(GL_TEXTURE0 + point);
+                glBindTexture(texture->target, texture->id);
+                glBindSampler(point, sampler);      // 0 = the texture's own state
                 break;
             }
 
@@ -631,7 +648,11 @@ void GLCommandEncoder::replay_(
 // current pipeline's VAO if anything changed since the last draw. False (and
 // logged) if there's no valid pipeline, a bind group the pipeline expects
 // isn't bound, or a vertex buffer slot the pipeline reads is empty.
-bool GLCommandEncoder::prepare_draw_(ReplayState& state, const char* draw) {
+bool GLCommandEncoder::prepare_draw_(
+    ReplayState& state,
+    const char* draw,
+    std::uint32_t first_instance
+) {
     if (!state.pipeline) {
         logger_.error("{}: no valid pipeline is set", draw);
         return false;
@@ -647,7 +668,8 @@ bool GLCommandEncoder::prepare_draw_(ReplayState& state, const char* draw) {
         }
     }
 
-    if (!state.vertex_bindings_dirty) return true;
+    if (!state.vertex_bindings_dirty && first_instance == state.bound_first_instance) return true;
+
     for (std::uint32_t slot = 0; slot < pipeline.vertex_buffer_count; ++slot) {
         const auto&     binding = state.vertex_buffers[slot];
         const GLBuffer* buffer  = state.device.buffers().get(binding.buffer);
@@ -656,37 +678,56 @@ bool GLCommandEncoder::prepare_draw_(ReplayState& state, const char* draw) {
                           draw, pipeline.name, slot);
             return false;
         }
-        glVertexArrayVertexBuffer(pipeline.vao, slot, buffer->id,
-                                  static_cast<GLintptr>(binding.offset), pipeline.strides[slot]);
+
+        // GL 3.3 has no base instance (glDraw*BaseInstance is 4.2), so
+        // per-instance attributes start first_instance elements further in.
+        const GLVertexSlot& layout = pipeline.vertex_slots[slot];
+        const std::uint64_t base   = binding.offset + (layout.per_instance
+            ? std::uint64_t{first_instance} * static_cast<std::uint64_t>(layout.stride)
+            : 0u);
+
+        glBindBuffer(GL_ARRAY_BUFFER, buffer->id);
+        for (std::uint32_t i = 0; i < layout.attribute_count; ++i) {
+            const GLVertexAttribute& a = pipeline.attributes[layout.first_attribute + i];
+            const auto* pointer = reinterpret_cast<const void*>(
+                static_cast<std::uintptr_t>(base + a.offset));
+
+            if (a.integer) {
+                glVertexAttribIPointer(a.location, a.size, a.type, layout.stride, pointer);
+            } else {
+                glVertexAttribPointer(a.location, a.size, a.type, a.normalized, layout.stride, pointer);
+            }
+        }
     }
 
     state.vertex_bindings_dirty = false;
+    state.bound_first_instance  = first_instance;
     return true;
 }
 
 // =============================================================================
 // Replay: draws
 //
-// Note for shaders: with first_instance, per-instance attributes start at
-// that instance, but GLSL's gl_InstanceID still starts at 0 (Vulkan's
-// gl_InstanceIndex includes the base). Prefer instance attributes over
-// gl_InstanceID so shaders behave the same on every backend.
+// first_instance is emulated by offsetting the per-instance attributes (see
+// prepare_draw_), so per-instance attributes start at that instance, but
+// GLSL's gl_InstanceID still starts at 0 (Vulkan's gl_InstanceIndex includes
+// the base). Prefer instance attributes over gl_InstanceID so shaders behave
+// the same on every backend.
 // =============================================================================
 
 void GLCommandEncoder::replay_(const cmd::Draw& c, ReplayState& state) {
-    if (!prepare_draw_(state, "draw")) return;
+    if (!prepare_draw_(state, "draw", c.first_instance)) return;
 
-    glDrawArraysInstancedBaseInstance(
+    glDrawArraysInstanced(
         state.pipeline->topology,
         static_cast<GLint>(c.first_vertex),
         static_cast<GLsizei>(c.vertex_count),
-        static_cast<GLsizei>(c.instance_count),
-        c.first_instance
+        static_cast<GLsizei>(c.instance_count)
     );
 }
 
 void GLCommandEncoder::replay_(const cmd::DrawIndexed& c, ReplayState& state) {
-    if (!prepare_draw_(state, "draw_indexed")) return;
+    if (!prepare_draw_(state, "draw_indexed", c.first_instance)) return;
 
     const GLBuffer* indices = state.device.buffers().get(state.index_buffer);
     if (!indices) {
@@ -696,20 +737,19 @@ void GLCommandEncoder::replay_(const cmd::DrawIndexed& c, ReplayState& state) {
 
     // The index buffer binding is part of the VAO; setting it every indexed
     // draw is cheap and always correct after a pipeline switch.
-    glVertexArrayElementBuffer(state.pipeline->vao, indices->id);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices->id);   // into the bound VAO
 
     const std::uint64_t byte_offset = state.index_offset
                                     + std::uint64_t{c.first_index}
                                     * index_size(state.index_format);
 
-    glDrawElementsInstancedBaseVertexBaseInstance(
+    glDrawElementsInstancedBaseVertex(
         state.pipeline->topology,
         static_cast<GLsizei>(c.index_count),
         to_gl_index_type(state.index_format),
         reinterpret_cast<const void*>(static_cast<std::uintptr_t>(byte_offset)),
         static_cast<GLsizei>(c.instance_count),
-        c.vertex_offset,
-        c.first_instance
+        c.vertex_offset
     );
 }
 
@@ -724,8 +764,12 @@ void GLCommandEncoder::replay_(const cmd::SetViewport& c, ReplayState& state) {
     const Viewport& v = c.viewport;
     const float y = static_cast<float>(state.pass_height) - (v.y + v.height);
 
-    glViewportIndexedf(0, v.x, y, v.width, v.height);
-    glDepthRangef(v.min_depth, v.max_depth);
+    // glViewport takes integers; floating-point viewports are 4.1.
+    glViewport(
+        static_cast<GLint>(v.x), static_cast<GLint>(y),
+        static_cast<GLsizei>(v.width), static_cast<GLsizei>(v.height)
+    );
+    glDepthRange(v.min_depth, v.max_depth);
 }
 
 void GLCommandEncoder::replay_(const cmd::SetScissor& c, ReplayState& state) {
@@ -753,7 +797,7 @@ void GLCommandEncoder::replay_(
     const cmd::PushDebugGroup& c,
     ReplayState& state)
 {
-    if (!state.device.debug()) return;
+    if (!state.device.debug() || !GLAD_GL_KHR_debug) return;
     glPushDebugGroup(
         GL_DEBUG_SOURCE_APPLICATION, 0,
         static_cast<GLsizei>(c.label.length),
@@ -762,7 +806,7 @@ void GLCommandEncoder::replay_(
 }
 
 void GLCommandEncoder::replay_(const cmd::PopDebugGroup&, ReplayState& state) {
-    if (!state.device.debug()) return;
+    if (!state.device.debug() || !GLAD_GL_KHR_debug) return;
     glPopDebugGroup();
 }
 

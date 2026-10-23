@@ -27,7 +27,7 @@ RHI::RenderPipelineHandle RectangleFilledKind::make_pipeline(const RendererConte
         /*.stage  = */RHI::ShaderStageFlags::Fragment,
         /*.format = */RHI::ShaderFormat::Glsl
     );
-    if (!vert_shader) return {};
+    if (!frag_shader) return {};
 
     // Setup shape attributes: unit quad
     const std::array<RHI::VertexAttribute, 1> shape_attributes = {

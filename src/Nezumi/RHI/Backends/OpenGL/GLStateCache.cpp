@@ -46,14 +46,24 @@ void GLStateCache::apply(const GLRenderPipelineState& state) {
 
     // Per color target. Targets past color_target_count don't exist in the
     // pass's framebuffer, so their state doesn't matter.
+    //
+    // GL 3.3 enables blending per target but has one blend function for all
+    // of them (glBlendFuncSeparatei is 4.0). GLDevice rejects pipelines whose
+    // enabled targets disagree, so the first enabled target's function is
+    // the pipeline's.
     for (std::uint32_t i = 0; i < state.color_target_count; ++i) {
         const GLBlendTarget& blend = state.blend[i];
-        if (!blend_valid_[i] || blend_[i] != blend) {
+        if (!blend_valid_[i] || blend_[i].enabled != blend.enabled) {
             if (blend.enabled) glEnablei(GL_BLEND, i); else glDisablei(GL_BLEND, i);
-            glBlendFuncSeparatei(i, blend.src_color, blend.dst_color, blend.src_alpha, blend.dst_alpha);
-            glBlendEquationSeparatei(i, blend.op_color, blend.op_alpha);
-            blend_[i]       = blend;
-            blend_valid_[i] = true;
+            blend_[i].enabled = blend.enabled;
+            blend_valid_[i]   = true;
+        }
+
+        if (blend.enabled && (!blend_func_valid_ || blend_func_ != blend)) {
+            glBlendFuncSeparate(blend.src_color, blend.dst_color, blend.src_alpha, blend.dst_alpha);
+            glBlendEquationSeparate(blend.op_color, blend.op_alpha);
+            blend_func_       = blend;
+            blend_func_valid_ = true;
         }
 
         const GLColorMask& mask = state.color_mask[i];
@@ -81,6 +91,7 @@ void GLStateCache::reset() {
     raster_valid_        = false;
     depth_stencil_valid_ = false;
     blend_valid_.fill(false);
+    blend_func_valid_ = false;
     mask_valid_.fill(false);
 }
 

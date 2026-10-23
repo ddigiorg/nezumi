@@ -3,9 +3,11 @@
 // =============================================================================
 
 #pragma once
+#include "Nezumi/World/Command/DeferEntityApplyDamage.hpp"
 #include "Nezumi/World/Command/DeferEntityCreate.hpp"
 #include "Nezumi/World/Command/DeferEntityRemove.hpp"
 #include "Nezumi/World/Command/DeferEntitySetActive.hpp"
+#include <utility> // exchange
 #include <vector>  // vector
 
 namespace Nezumi {
@@ -29,6 +31,10 @@ public:
         entity_set_actives_.push_back(cmd);
     }
 
+    void defer_entity_apply_damage(const DeferEntityApplyDamage& cmd) {
+        entity_apply_damages_.push_back(cmd);
+    }
+
     // -------------------------------------------------------------------------
     // Apply
     //
@@ -38,36 +44,39 @@ public:
     // -------------------------------------------------------------------------
 
     template <typename Fn>
-    void apply_entity_creates(Fn&& fn) {
-        auto cmds = entity_creates_;
-        entity_creates_ = {};
-        for (const auto& cmd : cmds) fn(cmd);
-    }
+    void apply_entity_creates(Fn&& fn) { apply_(entity_creates_, fn); }
 
     template <typename Fn>
-    void apply_entity_removes(Fn&& fn) {
-        auto cmds = entity_removes_;
-        entity_removes_ = {};
-        for (const auto& cmd : cmds) fn(cmd);
-    }
+    void apply_entity_removes(Fn&& fn) { apply_(entity_removes_, fn); }
 
     template <typename Fn>
-    void apply_entity_set_actives(Fn&& fn) {
-        auto cmds = entity_set_actives_;
-        entity_set_actives_ = {};
-        for (const auto& cmd : cmds) fn(cmd);
-    }
+    void apply_entity_set_actives(Fn&& fn) { apply_(entity_set_actives_, fn); }
+
+    template <typename Fn>
+    void apply_entity_apply_damages(Fn&& fn) { apply_(entity_apply_damages_, fn); }
 
 private:
+
+    // Swap the buffer out, walk it, then hand its capacity back so steady
+    // state does no allocation. Commands issued by `fn` land in `buffer`.
+    template <typename T, typename Fn>
+    static void apply_(std::vector<T>& buffer, Fn& fn) {
+        std::vector<T> cmds = std::exchange(buffer, {});
+        for (const T& cmd : cmds) fn(cmd);
+        if (buffer.empty()) {
+            cmds.clear();
+            buffer = std::move(cmds);
+        }
+    }
 
     // -------------------------------------------------------------------------
     // Members
     // -------------------------------------------------------------------------
 
-    std::vector<DeferEntityCreate>    entity_creates_     = {};
-    std::vector<DeferEntityRemove>    entity_removes_     = {};
-    std::vector<DeferEntitySetActive> entity_set_actives_ = {};
-    // std::vector<DamageCommand_>   pending_damage_      = {}; // TODO
+    std::vector<DeferEntityCreate>      entity_creates_       = {};
+    std::vector<DeferEntityRemove>      entity_removes_       = {};
+    std::vector<DeferEntitySetActive>   entity_set_actives_   = {};
+    std::vector<DeferEntityApplyDamage> entity_apply_damages_ = {};
 };
 
 } // namespace Nezumi

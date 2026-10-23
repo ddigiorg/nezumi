@@ -16,6 +16,11 @@ struct WorldConfig {
 
     // Empty sectors are swept every N ticks (0 disables sweeping).
     Tick sector_sweep_interval = 600u; // 10 s at 60 UPS
+
+    // Publish OnEntityDamaged for every applied hit. Each event is a heap
+    // allocation on the EventBus, so turn this off for very large battles if
+    // nothing listens.
+    bool publish_damage_events = true;
 };
 
 } // namespace Nezumi

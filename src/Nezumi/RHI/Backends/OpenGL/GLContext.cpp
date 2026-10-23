@@ -58,12 +58,23 @@ GLContext::GLContext(SDL_Window* window, Logger* logger, bool debug, bool vsync)
                 std::to_string(major) + "." + std::to_string(minor));
         }
 
-        if (debug) enable_debug_output(*logger_);
+        if (debug) {
+            if (GLAD_GL_KHR_debug) {
+                enable_debug_output(*logger_);
+            } else {
+                logger_->warn("GL_KHR_debug isn't available; driver debug output is off");
+            }
+        }
 
         // Clip-space depth 0..1 instead of GL's -1..1, matching Vulkan and
-        // D3D so projection matrices are identical on every backend. See
-        // DeviceInfo::clip_depth_zero_to_one.
-        glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+        // D3D so projection matrices are identical on every backend. Core in
+        // 4.5; on older drivers it needs the extension, and without it depth
+        // stays -1..1 (DeviceInfo::clip_depth_zero_to_one reports which).
+        if (GLAD_GL_ARB_clip_control) {
+            glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+        } else {
+            logger_->warn("GL_ARB_clip_control isn't available; clip-space depth is -1..1");
+        }
 
         set_vsync(vsync);
         log_driver_info(*logger_);

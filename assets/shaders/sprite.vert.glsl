@@ -4,9 +4,9 @@
 // Instance draw Sprite render objects.
 // =============================================================================
 
-#version 460 core
+#version 330 core
 
-layout(std140, binding = 0) uniform Frame {
+layout(std140) uniform Frame {
     mat4 view_proj;
 };
 
@@ -15,8 +15,8 @@ layout(location = 1) in vec4 i_pos_box; // instance {min_x, min_y, max_x, max_y}
 layout(location = 2) in vec4 i_tex_box; // instance {min_u, min_v, max_u, max_v} (v = 0 at image top)
 layout(location = 3) in vec4 i_tint;    // instance {r, g, b, a}
 
-layout(location = 0) out vec2 v_tex;
-layout(location = 1) out vec4 v_tint;
+out vec2 v_tex;
+out vec4 v_tint;
 
 void main() {
     vec2 world = mix(i_pos_box.xy, i_pos_box.zw, v_pos);

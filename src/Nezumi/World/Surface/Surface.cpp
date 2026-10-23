@@ -6,9 +6,8 @@
 #include "Nezumi/World/Events/OnChunkCreated.hpp"
 #include "Nezumi/World/World.hpp"
 #include "Nezumi/World/WorldContext.hpp"
-// #include <algorithm> // std::sort, std::unique, std::erase_if
-// #include <cassert>
-// #include <limits>
+#include <algorithm> // sort, unique, erase_if
+#include <cassert>   // assert
 
 namespace Nezumi {
 
@@ -102,73 +101,74 @@ void Surface::remove_from_sectors_(Entity* entity, SectorSpan span) {
 // Spatial Queries
 // -----------------------------------------------------------------------------
 
-// bool Surface::matches_(const Entity& entity, const EntitySearchFilter& filter) {
-//     if (entity.handle == filter.exclude)                              return false;
-//     if (filter.type && entity.type_id != filter.type)                 return false;
-//     if (!entity.factions_mask.has_all (filter.require_factions))      return false;
-//     if (!entity.factions_mask.has_none(filter.exclude_factions))      return false;
-//     return true;
-// }
+void Surface::find_entities_in(const Area2D&              area,
+                               const EntitySearchFilter&  filter,
+                               std::vector<EntityHandle>& results) const
+{
+    visit_entities_in(area, [&](const Entity& entity) {
+        if (filter.matches(entity)) results.push_back(entity.handle);
+        return true;
+    }, filter.include_inactive);
+}
 
-// void Surface::find_entities(const EntitySearchFilter&  filter,
-//                            std::vector<EntityHandle>& results) const
-// {
-//     size_t found = 0;
+void Surface::find_entities_near(Position2D                 center,
+                                 float                      radius,
+                                 const EntitySearchFilter&  filter,
+                                 std::vector<EntityHandle>& results) const
+{
+    const float radius2 = radius * radius;
 
-//     visit_entities_in(filter.area, [&](const Entity& entity) {
-//         if (!matches_(entity, filter)) return true;
-//         results.push_back(entity.handle);
-//         found++;
-//         return filter.limit == 0 || found < filter.limit;
-//     }, filter.include_inactive);
-// }
+    visit_entities_in(Area2D::around(center, radius), [&](const Entity& entity) {
+        if (center.distance2(entity.position) > radius2) return true;
+        if (filter.matches(entity)) results.push_back(entity.handle);
+        return true;
+    }, filter.include_inactive);
+}
 
-// EntityHandle Surface::find_nearest_entity(const Position2D&         position,
-//                                          const EntitySearchFilter& filter) const
-// {
-//     EntityHandle nearest   = {};
-//     float        min_dist2 = std::numeric_limits<float>::max();
+EntityHandle Surface::find_nearest_entity(Position2D                center,
+                                          float                     radius,
+                                          const EntitySearchFilter& filter) const
+{
+    EntityHandle nearest   = {};
+    float        min_dist2 = radius * radius;
 
-//     visit_entities_in(filter.area, [&](const Entity& entity) {
-//         if (!matches_(entity, filter)) return true;
+    visit_entities_in(Area2D::around(center, radius), [&](const Entity& entity) {
+        const float d2 = center.distance2(entity.position);
+        if (d2 > min_dist2) return true;
+        if (d2 == min_dist2 && nearest && entity.handle.index() > nearest.index()) return true;
+        if (!filter.matches(entity)) return true;
 
-//         const float d2 = position.distance2(entity.position);
+        min_dist2 = d2;
+        nearest   = entity.handle;
+        return true;
+    }, filter.include_inactive);
 
-//         if (d2 < min_dist2 ||
-//            (d2 == min_dist2 && entity.handle.index() < nearest.index()))
-//         {
-//             min_dist2 = d2;
-//             nearest   = entity.handle;
-//         }
-//         return true;
-//     }, filter.include_inactive);
+    return nearest;
+}
 
-//     return nearest;
-// }
+void Surface::find_colliding(const Area2D&              box,
+                             EntityHandle               exclude,
+                             std::vector<EntityHandle>& results) const
+{
+    const size_t first = results.size();
 
-// void Surface::find_colliding(const BoundingBox&         box,
-//                             EntityHandle               exclude,
-//                             std::vector<EntityHandle>& results) const
-// {
-//     const size_t first = results.size();
+    SectorSpan::span_from_box(box).each([&](SectorID id) {
+        const Sector* sector = get_sector(id);
+        if (!sector) return;
 
-//     SectorSpan::span_from_box(box).each([&](SectorID id) {
-//         const Sector* sector = get_sector(id);
-//         if (!sector) return;
+        for (const Entity* entity : sector->entities) {
+            if (entity->handle == exclude)              continue;
+            if (!entity->is_alive())                    continue;
+            if (!entity->collision_box().overlaps(box)) continue;
+            results.push_back(entity->handle);
+        }
+    });
 
-//         for (const Entity* entity : sector->entities) {
-//             if (entity->handle == exclude)              continue;
-//             if (entity->is_pending_destroy())           continue;
-//             if (!entity->collision_box().overlaps(box)) continue;
-//             results.push_back(entity->handle);
-//         }
-//     });
-
-//     // An entity spanning several sectors is found once per sector.
-//     const auto by_raw = [](EntityHandle a, EntityHandle b) { return a.raw() < b.raw(); };
-//     std::sort(results.begin() + first, results.end(), by_raw);
-//     results.erase(std::unique(results.begin() + first, results.end()), results.end());
-// }
+    // An entity spanning several sectors is found once per sector
+    const auto by_raw = [](EntityHandle a, EntityHandle b) { return a.raw() < b.raw(); };
+    std::sort(results.begin() + first, results.end(), by_raw);
+    results.erase(std::unique(results.begin() + first, results.end()), results.end());
+}
 
 // -----------------------------------------------------------------------------
 // Tick Phases

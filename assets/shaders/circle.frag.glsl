@@ -8,11 +8,11 @@
 // width >= radius puts the inner edge at or below zero, which leaves it filled.
 // =============================================================================
 
-#version 460 core
+#version 330 core
 
-layout(location = 0) in vec2 v_local;
-layout(location = 1) in vec4 v_color;
-layout(location = 2) in vec2 v_params; // { radius, width }
+in vec2 v_local;
+in vec4 v_color;
+in vec2 v_params; // { radius, width }
 
 layout(location = 0) out vec4 o_color;
 

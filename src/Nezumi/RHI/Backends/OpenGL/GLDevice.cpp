@@ -34,8 +34,20 @@ std::uint32_t max_mip_levels(std::uint32_t largest) {
     return levels;
 }
 
+// Uploads go through GL_COPY_WRITE_BUFFER, a binding point nothing else
+// uses: GL_ARRAY_BUFFER would work too, but GL_ELEMENT_ARRAY_BUFFER is VAO
+// state and GL_UNIFORM_BUFFER is shared with bind groups.
+void upload_buffer(GLuint id, std::uint64_t offset, std::uint64_t size, const void* data) {
+    glBindBuffer(GL_COPY_WRITE_BUFFER, id);
+    glBufferSubData(GL_COPY_WRITE_BUFFER, static_cast<GLintptr>(offset),
+                    static_cast<GLsizeiptr>(size), data);
+    glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
+}
+
+// Needs GL_KHR_debug (core in 4.3), which a 3.3 driver may not have. The
+// object must already exist, i.e. have been bound once after glGen*.
 void set_label(GLenum kind, GLuint id, std::string_view name) {
-    if (!name.empty()) {
+    if (GLAD_GL_KHR_debug && !name.empty()) {
         glObjectLabel(kind, id, static_cast<GLsizei>(name.size()), name.data());
     }
 }
@@ -111,24 +123,27 @@ BufferHandle GLDevice::create(const BufferConfig& config) {
     buffer.usage = config.usage;
     buffer.name  = std::string(config.name);
 
-    glCreateBuffers(1, &buffer.id);
+    glGenBuffers(1, &buffer.id);
+    glBindBuffer(GL_COPY_WRITE_BUFFER, buffer.id);   // creates the object
 
-    // Immutable storage. Only buffers written after creation get
-    // GL_DYNAMIC_STORAGE_BIT, which tells the driver the others never change.
-    const GLbitfield flags = has_any(config.usage, BufferUsageFlags::CopyDst) ? GL_DYNAMIC_STORAGE_BIT : 0;
-    const auto       size  = static_cast<GLsizeiptr>(config.size);
+    // GL 3.3 has no immutable storage (glBufferStorage is 4.4). The usage
+    // hint does the same job: buffers written after creation are DYNAMIC,
+    // the rest STATIC, telling the driver they never change.
+    const GLenum hint = has_any(config.usage, BufferUsageFlags::CopyDst) ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW;
+    const auto   size = static_cast<GLsizeiptr>(config.size);
 
     if (config.initial_data.empty()) {
-        glNamedBufferStorage(buffer.id, size, nullptr, flags);
+        glBufferData(GL_COPY_WRITE_BUFFER, size, nullptr, hint);
     } else if (config.initial_data.size() == config.size) {
-        glNamedBufferStorage(buffer.id, size, config.initial_data.data(), flags);
+        glBufferData(GL_COPY_WRITE_BUFFER, size, config.initial_data.data(), hint);
     } else {
-        // Partial initial data: storage without DYNAMIC_STORAGE_BIT can't be
-        // written afterwards, so zero-fill the rest and upload in one call.
+        // Partial initial data: zero-fill the rest and upload in one call.
         std::vector<std::byte> full(config.size);
         std::copy(config.initial_data.begin(), config.initial_data.end(), full.begin());
-        glNamedBufferStorage(buffer.id, size, full.data(), flags);
+        glBufferData(GL_COPY_WRITE_BUFFER, size, full.data(), hint);
     }
+
+    glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
 
     if (debug_) set_label(GL_BUFFER, buffer.id, buffer.name);
     return buffers_.create(std::move(buffer)).handle;
@@ -161,12 +176,7 @@ void GLDevice::write_buffer(
     if (data.empty()) return;
 
     if (!in_frame_) {
-        glNamedBufferSubData(
-            buffer->id,
-            static_cast<GLintptr>(offset),
-            static_cast<GLsizeiptr>(data.size()),
-            data.data()
-        );
+        upload_buffer(buffer->id, offset, data.size(), data.data());
         return;
     }
 
@@ -271,30 +281,55 @@ TextureHandle GLDevice::create(const TextureConfig& config) {
     texture.usage           = config.usage;
     texture.name            = std::string(config.name);
 
-    glCreateTextures(texture.target, 1, &texture.id);
+    glGenTextures(1, &texture.id);
+    glBindTexture(texture.target, texture.id);   // creates the object
 
-    const GLenum  internal = to_gl_internal_format(config.format);
-    const auto    levels   = static_cast<GLsizei>(config.mip_levels);
-    const auto    w        = static_cast<GLsizei>(config.width);
-    const auto    h        = static_cast<GLsizei>(config.height);
+    // GL 3.3 has no immutable storage (glTexStorage is 4.2), so each mip
+    // level is allocated separately. The format and type passed with the
+    // null data must still be a valid pairing for the internal format.
+    const GLenum         internal = to_gl_internal_format(config.format);
+    const GLUploadFormat upload   = to_gl_upload_format(config.format);
 
-    switch (config.type) {
-        case TextureType::Texture1D:
-        case TextureType::Texture2D:
-        case TextureType::TextureCube:       // six faces are implied
-            glTextureStorage2D(texture.id, levels, internal, w, h);
-            break;
-        case TextureType::Texture2DArray:
-        case TextureType::Texture3D:
-            glTextureStorage3D(texture.id, levels, internal, w, h, static_cast<GLsizei>(layers));
-            break;
+    for (std::uint32_t level = 0; level < config.mip_levels; ++level) {
+        const auto mip = static_cast<GLint>(level);
+        const auto w   = static_cast<GLsizei>(mip_extent(config.width,  level));
+        const auto h   = static_cast<GLsizei>(mip_extent(config.height, level));
+        const auto d   = static_cast<GLsizei>(config.type == TextureType::Texture3D
+                                                  ? mip_extent(layers, level) : layers);
+
+        switch (config.type) {
+            case TextureType::Texture1D:
+                glTexImage1D(GL_TEXTURE_1D, mip, static_cast<GLint>(internal), w, 0,
+                             upload.format, upload.type, nullptr);
+                break;
+            case TextureType::Texture2D:
+                glTexImage2D(GL_TEXTURE_2D, mip, static_cast<GLint>(internal), w, h, 0,
+                             upload.format, upload.type, nullptr);
+                break;
+            case TextureType::TextureCube:
+                for (GLenum face = 0; face < 6; ++face) {
+                    glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, mip, static_cast<GLint>(internal),
+                                 w, h, 0, upload.format, upload.type, nullptr);
+                }
+                break;
+            case TextureType::Texture2DArray:
+            case TextureType::Texture3D:
+                glTexImage3D(texture.target, mip, static_cast<GLint>(internal), w, h, d, 0,
+                             upload.format, upload.type, nullptr);
+                break;
+        }
     }
+
+    // Without immutable storage GL assumes a full mip chain; capping the
+    // level range keeps a texture with fewer levels "complete".
+    glTexParameteri(texture.target, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(texture.target, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(config.mip_levels - 1));
 
     // GL's default minification filter samples mipmaps, which makes a texture
     // with a single level "incomplete" and read back black when no sampler
     // is bound. Samplers override this; it's a safety net.
-    glTextureParameteri(
-        texture.id,
+    glTexParameteri(
+        texture.target,
         GL_TEXTURE_MIN_FILTER,
         config.mip_levels > 1 ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR
     );
@@ -418,17 +453,29 @@ void GLDevice::upload_texture_(
     const auto h   = static_cast<GLsizei>(region.height);
     const auto d   = static_cast<GLsizei>(region.depth_or_layers);
 
+    glBindTexture(texture.target, texture.id);
+
     switch (texture.type) {
         case TextureType::Texture1D:
-            glTextureSubImage1D(texture.id, mip, x, w, upload.format, upload.type, data);
+            glTexSubImage1D(GL_TEXTURE_1D, mip, x, w, upload.format, upload.type, data);
             break;
         case TextureType::Texture2D:
-            glTextureSubImage2D(texture.id, mip, x, y, w, h, upload.format, upload.type, data);
+            glTexSubImage2D(GL_TEXTURE_2D, mip, x, y, w, h, upload.format, upload.type, data);
             break;
+        case TextureType::TextureCube: {
+            // Without DSA each face is its own 2D target; z selects the first.
+            const std::uint64_t pitch = region.bytes_per_row ? region.bytes_per_row
+                                                             : get_row_size(texture.format, region.width);
+            for (GLsizei face = 0; face < d; ++face) {
+                glTexSubImage2D(static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + z + face),
+                                mip, x, y, w, h, upload.format, upload.type,
+                                data + pitch * region.height * static_cast<std::uint64_t>(face));
+            }
+            break;
+        }
         case TextureType::Texture2DArray:
-        case TextureType::TextureCube:       // z selects the face
         case TextureType::Texture3D:
-            glTextureSubImage3D(texture.id, mip, x, y, z, w, h, d, upload.format, upload.type, data);
+            glTexSubImage3D(texture.target, mip, x, y, z, w, h, d, upload.format, upload.type, data);
             break;
     }
 
@@ -443,7 +490,7 @@ SamplerHandle GLDevice::create(const SamplerConfig& config) {
     GLSampler sampler;
     sampler.name = std::string(config.name);
 
-    glCreateSamplers(1, &sampler.id);
+    glGenSamplers(1, &sampler.id);
 
     glSamplerParameteri(
         sampler.id,
@@ -509,7 +556,7 @@ ShaderHandle GLDevice::create(const ShaderConfig& config) {
 
     const GLenum stage = to_gl_shader_stage(config.stage);
     if (stage == GL_NONE)
-        return fail("stage must be exactly one of Vertex, Fragment, Compute");
+        return fail("stage must be exactly one of Vertex, Fragment (compute needs OpenGL 4.3)");
     if (config.code.empty())
         return fail("code is empty");
 
@@ -591,6 +638,19 @@ RenderPipelineHandle GLDevice::create(const RenderPipelineConfig& config) {
         if (is_depth_format(target.format))     return fail("a color target has a depth format");
     }
 
+    // GL 3.3 has one blend function and equation for all draw buffers
+    // (glBlendFuncSeparatei is 4.0); only enabling blending is per target.
+    for (const ColorTargetState& target : config.color_targets) {
+        const BlendState& a = target.blend;
+        const BlendState& b = config.color_targets[0].blend;
+        if (a.enabled && b.enabled &&
+            (a.color.src != b.color.src || a.color.dst != b.color.dst || a.color.op != b.color.op ||
+             a.alpha.src != b.alpha.src || a.alpha.dst != b.alpha.dst || a.alpha.op != b.alpha.op))
+        {
+            return fail("color targets use different blend functions, which OpenGL 3.3 can't do");
+        }
+    }
+
     const DepthStencilState& ds = config.depth_stencil;
 
     if (config.color_targets.empty() && ds.format == Format::Undefined) {
@@ -628,10 +688,10 @@ RenderPipelineHandle GLDevice::create(const RenderPipelineConfig& config) {
             std::uint32_t       limit = 0;
             switch (entry.type) {
                 case BindType::UniformBuffer:         limit = binding_limits_.uniform_buffers; break;
-                case BindType::StorageBuffer:
-                case BindType::ReadOnlyStorageBuffer: limit = binding_limits_.storage_buffers; break;
                 case BindType::SampledTexture:        limit = binding_limits_.texture_units;   break;
-                case BindType::StorageTexture:        limit = binding_limits_.image_units;     break;
+                case BindType::StorageBuffer:
+                case BindType::ReadOnlyStorageBuffer:
+                case BindType::StorageTexture:                    // rejected by the layout
                 case BindType::Sampler:               continue;   // shares its textures' units
             }
 
@@ -670,47 +730,64 @@ RenderPipelineHandle GLDevice::create(const RenderPipelineConfig& config) {
         return fail("linking failed:\n" + log);
     }
 
+    // ---- Bindings -----------------------------------------------------------
+    // GLSL 3.30 can't declare binding points, so each uniform block and
+    // sampler is found by its layout entry's name and pointed at its GL
+    // binding (GLLimits.hpp). Names the program doesn't use (another stage's,
+    // or optimized away) are skipped.
+    glUseProgram(pipeline.program);
+    for (std::uint32_t group = 0; group < config.bind_group_layouts.size(); ++group) {
+        const GLBindGroupLayout* layout = live_(bind_group_layouts_, config.bind_group_layouts[group]);
+
+        for (std::size_t i = 0; i < layout->entries.size(); ++i) {
+            const BindGroupLayoutEntry& entry = layout->entries[i];
+            const char*                 name  = layout->names[i].c_str();
+            const GLuint                point = gl_binding(group, entry.binding);
+
+            if (entry.type == BindType::UniformBuffer) {
+                const GLuint index = glGetUniformBlockIndex(pipeline.program, name);
+                if (index != GL_INVALID_INDEX) glUniformBlockBinding(pipeline.program, index, point);
+            } else if (entry.type == BindType::SampledTexture) {
+                const GLint location = glGetUniformLocation(pipeline.program, name);
+                if (location >= 0) glUniform1i(location, static_cast<GLint>(point));
+            }
+        }
+    }
+    glUseProgram(0);
+
     // ---- Vertex layout ------------------------------------------------------
-    // Attribute formats live in the VAO; the buffers themselves are attached
-    // at draw time, with the strides kept below.
-    glCreateVertexArrays(1, &pipeline.vao);
+    // The VAO records which attributes are enabled and their divisors. The
+    // formats are kept in the pipeline and pointed at buffers at draw time,
+    // since GL 3.3 sets format and buffer in the same call.
+    glGenVertexArrays(1, &pipeline.vao);
+    glBindVertexArray(pipeline.vao);
     for (std::uint32_t slot = 0; slot < config.vertex_buffers.size(); ++slot) {
         const VertexBufferLayout& layout = config.vertex_buffers[slot];
+        const bool per_instance = layout.step_mode == VertexStepMode::Instance;
 
-        glVertexArrayBindingDivisor(
-            pipeline.vao,
-            slot,
-            layout.step_mode == VertexStepMode::Instance ? 1 : 0
-        );
+        GLVertexSlot& out   = pipeline.vertex_slots[slot];
+        out.stride          = static_cast<GLsizei>(layout.stride);
+        out.per_instance    = per_instance;
+        out.first_attribute = static_cast<std::uint32_t>(pipeline.attributes.size());
+        out.attribute_count = static_cast<std::uint32_t>(layout.attributes.size());
 
         for (const VertexAttribute& attribute : layout.attributes) {
             const GLVertexFormat format = to_gl_vertex_format(attribute.format);
-            glEnableVertexArrayAttrib(pipeline.vao, attribute.location);
 
-            if (format.integer) {
-                glVertexArrayAttribIFormat(
-                    pipeline.vao,
-                    attribute.location,
-                    format.size,
-                    format.type,
-                    attribute.offset
-                );
-            } else {
-                glVertexArrayAttribFormat(
-                    pipeline.vao,
-                    attribute.location,
-                    format.size,
-                    format.type,
-                    format.normalized,
-                    attribute.offset
-                );
-            }
+            glEnableVertexAttribArray(attribute.location);
+            glVertexAttribDivisor(attribute.location, per_instance ? 1 : 0);
 
-            glVertexArrayAttribBinding(pipeline.vao, attribute.location, slot);
+            pipeline.attributes.push_back({
+                attribute.location,
+                format.size,
+                format.type,
+                format.normalized,
+                format.integer,
+                attribute.offset
+            });
         }
-
-        pipeline.strides[slot] = static_cast<GLsizei>(layout.stride);
     }
+    glBindVertexArray(0);
 
     pipeline.vertex_buffer_count = static_cast<std::uint32_t>(config.vertex_buffers.size());
 
@@ -819,12 +896,23 @@ BindGroupLayoutHandle GLDevice::create(const BindGroupLayoutConfig& config) {
 
         bool is_buffer = false;
         switch (entry.type) {
-            case BindType::UniformBuffer:
+            case BindType::UniformBuffer:  is_buffer = true; break;
+            case BindType::SampledTexture: ++textures;       break;
+            case BindType::Sampler:        ++samplers;       break;
             case BindType::StorageBuffer:
-            case BindType::ReadOnlyStorageBuffer: is_buffer = true; break;
-            case BindType::SampledTexture:        ++textures;       break;
-            case BindType::Sampler:               ++samplers;       break;
-            case BindType::StorageTexture:                          break;
+            case BindType::ReadOnlyStorageBuffer:
+            case BindType::StorageTexture:
+                logger_->error("create_bind_group_layout('{}'): binding {} is a storage buffer or "
+                               "storage texture, which needs OpenGL 4.3", config.name, entry.binding);
+                return {};
+        }
+
+        // See BindGroupLayoutEntry::name.
+        const bool named = entry.type == BindType::UniformBuffer || entry.type == BindType::SampledTexture;
+        if (named && entry.name.empty()) {
+            logger_->error("create_bind_group_layout('{}'): binding {} needs a name (its GLSL uniform "
+                           "block or sampler name) on OpenGL 3.3", config.name, entry.binding);
+            return {};
         }
 
         if (entry.has_dynamic_offset) {
@@ -842,6 +930,12 @@ BindGroupLayoutHandle GLDevice::create(const BindGroupLayoutConfig& config) {
         logger_->error("create_bind_group_layout('{}'): a group with textures may have at most one "
                        "sampler on OpenGL (it applies to every texture in the group)", config.name);
         return {};
+    }
+
+    // Own the names: the config's string_views don't outlive this call.
+    for (BindGroupLayoutEntry& entry : layout.entries) {
+        layout.names.emplace_back(entry.name);
+        entry.name = {};
     }
 
     return bind_group_layouts_.create(std::move(layout)).handle;
@@ -900,8 +994,8 @@ BindGroupHandle GLDevice::create(const BindGroupConfig& config) {
                     return bad(uniform ? "buffer lacks BufferUsageFlags::Uniform" : "buffer lacks BufferUsageFlags::Storage");
                 }
 
-                const std::uint32_t alignment = uniform ? info_.uniform_buffer_offset_alignment
-                                                        : binding_limits_.storage_buffer_offset_alignment;
+                // Storage buffers never get here: their layouts are rejected.
+                const std::uint32_t alignment = info_.uniform_buffer_offset_alignment;
 
                 if (alignment && entry->offset % alignment != 0) {
                     return bad("offset isn't a multiple of the device's buffer offset alignment");
@@ -1170,12 +1264,7 @@ void GLDevice::apply_pending_writes_() {
     // handles no longer resolve.
     for (const PendingBufferWrite& w : buffer_writes_) {
         if (const GLBuffer* buffer = buffers_.get(w.buffer)) {
-            glNamedBufferSubData(
-                buffer->id,
-                static_cast<GLintptr>(w.offset),
-                static_cast<GLsizeiptr>(w.size),
-                staging_.data() + w.data_offset
-            );
+            upload_buffer(buffer->id, w.offset, w.size, staging_.data() + w.data_offset);
         }
     }
     for (const PendingTextureWrite& w : texture_writes_) {
@@ -1206,9 +1295,9 @@ void GLDevice::present_() {
     glDisable(GL_SCISSOR_TEST);
     glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     state_cache_.write_masks_changed();
-    glBlitNamedFramebuffer(
-        source,
-        0, // 0 = the window's framebuffer
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, source);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);   // 0 = the window's framebuffer
+    glBlitFramebuffer(
         0,
         0,
         static_cast<GLint>(backbuffer_extent_.width),

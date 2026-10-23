@@ -1,7 +1,9 @@
 // =============================================================================
 // Events/OnEntityDamaged.hpp
 //
-// Published when a damage command is applied to an entity.
+// Published when a damage command is applied to an entity. When `health` is
+// 0 the entity was killed and is removed at the next command phase
+// (OnEntityRemoved follows).
 //
 // Sim notification. World enqueues it on the EventBus (EventPhase::TickPost)
 // and it is dispatched when the game loop flushes that phase. Listeners are
@@ -9,22 +11,20 @@
 // World commands.
 // =============================================================================
 
-// TODO
+#pragma once
+#include "Nezumi/Core/Tick.hpp"
+#include "Nezumi/Event/IEvent.hpp"
+#include "Nezumi/World/Entity/EntityID.hpp"
+#include <cstdint> // uint16_t
 
-// #pragma once
-// #include "Nezumi/Core/Tick.hpp"
-// #include "Nezumi/Event/IEvent.hpp"
-// #include "Nezumi/World/Entity/EntityID.hpp"
-// #include <cstdint> // uint16_t
+namespace Nezumi {
 
-// namespace Nezumi {
+struct OnEntityDamaged : IEvent {
+    EntityHandle target = {};
+    EntityHandle source = {}; // may be null or stale
+    uint16_t     amount = 0;  // damage actually applied
+    uint16_t     health = 0;  // target health after damage
+    Tick         tick   = 0;
+};
 
-// struct OnEntityDamaged : IEvent {
-//     EntityHandle target = {};
-//     EntityHandle source = {}; // may be null or stale
-//     uint16_t     amount = 0;  // damage actually applied
-//     uint16_t     health = 0;  // target health after damage
-//     Tick         tick   = 0;
-// };
-
-// } // namespace Nezumi
+} // namespace Nezumi

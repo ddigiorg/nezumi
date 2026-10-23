@@ -131,13 +131,17 @@ endif()
 # ------------------------------------------------------------------------------
 # GLAD
 #
-# The OpenGL 4.6 Core loader is generated once with glad2 2.0.8 and committed
+# The OpenGL 3.3 Core loader is generated once with glad2 2.0.8 and committed
 # under thirdparty/glad. Its output never changes for a given API version, so
-# vendoring it removes Python from the build requirements entirely.
+# vendoring it removes Python from the build requirements entirely. The
+# extensions are optional features the GL backend uses when the driver has
+# them (it checks GLAD_GL_<extension> first).
 #
 # To regenerate:
 #   pip install glad2==2.0.8
-#   python -m glad --api gl:core=4.6 --out-path thirdparty/glad c --loader
+#   python -m glad --api gl:core=3.3 \
+#       --extensions GL_ARB_clip_control,GL_ARB_invalidate_subdata,GL_ARB_texture_filter_anisotropic,GL_EXT_texture_filter_anisotropic,GL_KHR_debug \
+#       --out-path thirdparty/glad c --loader
 # ------------------------------------------------------------------------------
 
 set(NEZUMI_GLAD_DIR "${CMAKE_CURRENT_LIST_DIR}/../thirdparty/glad")

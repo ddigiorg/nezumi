@@ -6,7 +6,9 @@
 
 #include "Nezumi/Core/Clock.hpp"
 #include "Nezumi/World/Events/OnSurfaceCreated.hpp"
+#include "Nezumi/World/Entity/EntityDamageable.hpp"
 #include "Nezumi/World/Events/OnEntityCreated.hpp"
+#include "Nezumi/World/Events/OnEntityDamaged.hpp"
 #include "Nezumi/World/Events/OnEntityRemoved.hpp"
 #include "Nezumi/EngineContext.hpp"
 #include <cstdint> // uint32_t
@@ -49,7 +51,7 @@ void World::tick() {
     apply_commands_   ();       // 1. Commands
     update_activation_();       // 2. Activation
     tick_entities_    (ctx);    // 3. Entity tick
-    // resolve_damage_   ();       // 4. Damage
+    apply_damage_     ();       // 4. Damage
     integrate_movement_(ctx.dt);// 5. Movement + spatial update
     update_activation_();       // 6. Activation
     sweep_sectors_    ();       // 7. Sector sweep
@@ -114,10 +116,10 @@ void World::set_entity_active(EntityHandle handle, bool active) {
     commands_.defer_entity_set_active({ handle, active });
 }
 
-// void World::damage_entity(EntityHandle target, uint16_t amount, EntityHandle source) {
-//     if (amount == 0) return;
-//     pending_damage_.push_back({ target, source, amount });
-// }
+void World::damage_entity(EntityHandle target, uint16_t amount, EntityHandle source) {
+    if (amount == 0) return;
+    commands_.defer_entity_apply_damage({ target, source, amount });
+}
 
 // -----------------------------------------------------------------------------
 // Tick Phase 1: Commands
@@ -208,30 +210,33 @@ void World::tick_entities_(WorldContext& ctx) {
 // Tick Phase 4: Damage
 // -----------------------------------------------------------------------------
 
-// TODO
+// Damage issued during the entity tick, applied in issue order. Damage issued
+// outside a tick (e.g. from the app) waits here for the next tick.
 
-// void World::resolve_damage_() {
-//     for (const DamageCommand_& cmd : std::exchange(pending_damage_, {})) {
-//         Entity* target = entities_.get(cmd.target);
-//         if (!target || !target->is_alive()) continue;
-//         if (!target->is_damageable())       continue;
-//         if (target->health == 0)            continue;
+void World::apply_damage_() {
+    commands_.apply_entity_apply_damages([&](const DeferEntityApplyDamage& cmd) {
+        Entity* entity = entities_.get(cmd.target);
+        if (!entity || !entity->is_alive() || !entity->is_damageable()) return;
 
-//         const uint16_t applied = std::min(cmd.amount, target->health);
-//         target->health = static_cast<uint16_t>(target->health - applied);
+        auto* target = static_cast<EntityDamageable*>(entity);
+        if (target->is_dead()) return;
 
-//         OnEntityDamaged event;
-//         event.target = cmd.target;
-//         event.source = cmd.source;
-//         event.amount = applied;
-//         event.health = target->health;
-//         event.tick   = tick_;
-//         publish_(event);
+        const uint16_t applied = target->apply_damage(cmd.amount);
 
-//         // Flagged now, removed at the next command phase.
-//         if (target->health == 0) destroy_entity(cmd.target);
-//     }
-// }
+        if (config_.publish_damage_events) {
+            OnEntityDamaged event;
+            event.target = cmd.target;
+            event.source = cmd.source;
+            event.amount = applied;
+            event.health = target->health;
+            event.tick   = tick_;
+            publish_(event);
+        }
+
+        // Flagged now (queries and ticks skip it), removed next command phase
+        if (target->is_dead()) remove_entity(cmd.target);
+    });
+}
 
 // -----------------------------------------------------------------------------
 // Tick Phase 5: Movement

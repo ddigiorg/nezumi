@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <glad/gl.h>
 #include <string>
+#include <vector>
 
 namespace Nezumi::RHI::GL {
 
@@ -86,6 +87,32 @@ struct GLRenderPipelineState {
 };
 
 // -----------------------------------------------------------------------------
+// Vertex input
+//
+// GL 3.3 has no separate vertex format and buffer binding (that's 4.3's
+// glVertexAttribFormat / glBindVertexBuffer): each attribute is pointed at
+// its buffer with glVertexAttribPointer, which takes the buffer, offset, and
+// stride all at once. So the layout is kept here and applied at draw time,
+// once the buffers are known.
+// -----------------------------------------------------------------------------
+
+struct GLVertexAttribute {
+    GLuint    location   = 0;
+    GLint     size       = 0;        // components
+    GLenum    type       = GL_FLOAT;
+    GLboolean normalized = GL_FALSE;
+    bool      integer    = false;    // glVertexAttribIPointer
+    GLuint    offset     = 0;        // within one vertex / instance
+};
+
+struct GLVertexSlot {
+    GLsizei       stride          = 0;
+    bool          per_instance    = false;
+    std::uint32_t first_attribute = 0;   // into GLRenderPipeline::attributes
+    std::uint32_t attribute_count = 0;
+};
+
+// -----------------------------------------------------------------------------
 // GLRenderPipeline
 // -----------------------------------------------------------------------------
 
@@ -94,9 +121,10 @@ struct GLRenderPipeline {
     GLuint vao      = 0;
     GLenum topology = GL_TRIANGLES;
 
-    // Vertex buffer strides by slot. GL takes the stride when a buffer is
-    // bound, not as part of the layout, so it's kept here for draw time.
-    std::array<GLsizei, MAX_VERTEX_BUFFERS> strides = {};
+    // Vertex layout by slot, applied at draw time (see above). The VAO holds
+    // only which attributes are enabled and their divisors.
+    std::array<GLVertexSlot, MAX_VERTEX_BUFFERS> vertex_slots = {};
+    std::vector<GLVertexAttribute>               attributes;
     std::uint32_t vertex_buffer_count = 0;
 
     GLRenderPipelineState state = {};

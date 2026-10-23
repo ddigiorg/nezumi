@@ -62,9 +62,7 @@ void Chunk::set_entity_active_(Entity* entity, bool active) {
     assert(entity && "Entity is not valid");
     assert(entity->chunk_id == id_ && "Entity is not in this chunk");
 
-    if (!(entity->is_active() ^ active)) return;
-
-    if (entity->is_active()) return;
+    if (entity->is_active() == active) return;
 
     list_for_(entity).remove(entity);
     (active)

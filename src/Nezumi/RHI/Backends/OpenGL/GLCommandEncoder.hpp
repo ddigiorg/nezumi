@@ -101,7 +101,7 @@ private:
 
     bool require_pass_(const char* function);
 
-    bool prepare_draw_(ReplayState& state, const char* draw);
+    bool prepare_draw_(ReplayState& state, const char* draw, std::uint32_t first_instance);
 
     cmd::StringRef store_string_(std::string_view text);
 

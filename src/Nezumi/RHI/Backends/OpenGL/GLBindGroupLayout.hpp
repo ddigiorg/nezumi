@@ -17,7 +17,8 @@
 namespace Nezumi::RHI::GL {
 
 struct GLBindGroupLayout {
-    std::vector<BindGroupLayoutEntry> entries; // sorted by binding
+    std::vector<BindGroupLayoutEntry> entries; // sorted by binding; name is cleared
+    std::vector<std::string>          names;   // owned copies of entries[i].name
     std::uint32_t                     dynamic_offset_count = 0;
 
     // See GLTexture::pending_destroy.

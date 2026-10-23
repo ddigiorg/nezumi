@@ -4,9 +4,9 @@
 // Instance draw Arrow render objects.
 // =============================================================================
 
-#version 460 core
+#version 330 core
 
-layout(std140, binding = 0) uniform FrameUniforms {
+layout(std140) uniform Frame {
     mat4 u_view_proj;
 };
 
@@ -16,7 +16,7 @@ layout(location = 2) in float i_size;  // instance
 layout(location = 3) in float i_angle; // instance (radians)
 layout(location = 4) in vec4  i_color; // instance { r, g, b, a }
 
-layout(location = 0) out vec4 v_color;
+out vec4 v_color;
 
 void main() {
     float c = cos(i_angle);

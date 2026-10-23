@@ -70,7 +70,6 @@ struct SortKey {
     // -------------------------------------------------------------------------
 
     static constexpr std::uint64_t make(
-        std::uint8_t      view,
         const DrawParams& params,
         KindID            kind)
     {
@@ -78,11 +77,11 @@ struct SortKey {
         const std::int32_t  clamped = std::clamp(params.order, ORDER_MIN, ORDER_MAX);
         const std::uint64_t order   = std::uint64_t(std::int64_t(clamped) - ORDER_MIN);
 
-        return (std::uint64_t(view & 0xF)      << VIEW_SHIFT)
-             | (std::uint64_t(params.layer)    << LAYER_SHIFT)
-             | (order                          << ORDER_SHIFT)
-             | (std::uint64_t(kind)            << KIND_SHIFT)
-             | (std::uint64_t(params.material) << MATERIAL_SHIFT);
+        return (std::uint64_t(params.view & 0xF) << VIEW_SHIFT    )
+             | (std::uint64_t(params.layer)      << LAYER_SHIFT   )
+             | (order                            << ORDER_SHIFT   )
+             | (std::uint64_t(kind)              << KIND_SHIFT    )
+             | (std::uint64_t(params.material)   << MATERIAL_SHIFT);
     }
 
     static constexpr std::uint8_t view(std::uint64_t key) {

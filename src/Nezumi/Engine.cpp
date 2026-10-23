@@ -40,6 +40,7 @@ Engine::Engine(const EngineConfig& config)
         .clock      = clock_     .get(),
         .event_bus  = event_bus_ .get(),
         .event_pump = event_pump_.get(),
+        .input      = input_     .get(),
         .logger     = logger_    .get(),
         .random     = random_    .get(),
         .stopwatch  = stopwatch_ .get(),
@@ -62,6 +63,7 @@ Engine::~Engine() {
     if (stopwatch_ ) stopwatch_ .reset();
     if (clock_     ) clock_     .reset();
     if (random_    ) random_    .reset();
+    if (input_     ) input_     .reset();
     if (event_pump_) event_pump_.reset();
     if (event_bus_ ) event_bus_ .reset();
     if (logger_    ) logger_    .reset();
@@ -87,6 +89,11 @@ void Engine::setup_subsystems_() {
     event_pump_ = std::make_unique<EventPump>(*event_bus_);
     if (!event_pump_)
         throw std::runtime_error("Failed to create EventPump");
+
+    // Create InputMap
+    input_ = std::make_unique<InputMap>(*event_bus_);
+    if (!input_)
+        throw std::runtime_error("Failed to create InputMap");
 
     // Create Random
     random_ = std::make_unique<Random>(config_.random);
@@ -187,6 +194,9 @@ void Engine::run_tick_(IApplication& app) {
 
     // TODO: app.on_tick_pre(*this);
     app.on_tick(*this);
+
+    // on_tick has seen this tick's presses and releases
+    input_->clear_edges();
 
     world_->tick();
 

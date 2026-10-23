@@ -27,7 +27,7 @@ RHI::RenderPipelineHandle ArrowKind::make_pipeline(const RendererContext& ctx) {
         /*.stage  = */RHI::ShaderStageFlags::Fragment,
         /*.format = */RHI::ShaderFormat::Glsl
     );
-    if (!vert_shader) return {};
+    if (!frag_shader) return {};
 
     // Setup shape attributes: unit arrow polygon
     const std::array<RHI::VertexAttribute, 1> shape_attributes = {

@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "Nezumi/Render/Renderer.hpp"
+#include "Nezumi/Render/View/ViewID.hpp"
 #include <cassert> // assert
 
 namespace Nezumi::Render {
@@ -21,18 +22,19 @@ Renderer::Renderer(RHI::Device& device, const RendererConfig& config)
     , shaders_  (device)
     , kinds_    (device)
 {
-    // Setup default views and their respective cameras
-
-    views_[View::Player] = cameras_.create(
+    // Setup default cameras for the default views
+    views_[View::World] = cameras_.create(
         CameraConfig{
-            .name   = "player-camera",
-            .origin = CameraOrigin::Centered
+            .name            = "world-camera",
+            .origin          = CameraOrigin::Centered,
+            .pixels_per_unit = config.world_pixels_per_unit,
         }
     ).handle;
+
     views_[View::Screen] = cameras_.create(
         CameraConfig{
             .name   = "screen-camera",
-            .origin = Render::CameraOrigin::BottomLeft
+            .origin = CameraOrigin::BottomLeft,
         }
     ).handle;
 
@@ -98,10 +100,10 @@ void Renderer::end_frame() {
     // Every view with a live camera: size it to the backbuffer and upload its
     // matrix to the view's slot (each slot is its own byte range).
     const RHI::Extent2D size = device_.backbuffer_extent();
-    for (ViewID view = 0; view < VIEW_COUNT; ++view) {
-        if (Camera* camera = cameras_.get(views_[view])) {
+    for (ViewID vid = 0; vid < VIEW_CAPACITY; vid++) {
+        if (Camera* camera = cameras_.get(views_[vid])) {
             camera->set_size({ float(size.width), float(size.height) });
-            frame_.update(view, camera->get_vp());
+            frame_.update(vid, camera->get_vp());
         }
     }
 
@@ -260,25 +262,21 @@ Font* Renderer::get_font(Handle<Font> handle) {
 // -----------------------------------------------------------------------------
 
 void Renderer::set_view(ViewID view, Handle<Camera> camera) {
-    assert(view < VIEW_COUNT && "Renderer: setting view out of range");
+    assert(view < VIEW_CAPACITY && "Renderer: setting view out of range");
     views_[view] = camera;
 }
 
 void Renderer::clear_view(ViewID view) {
-    assert(view < VIEW_COUNT && "Renderer: clearing view out of range");
+    assert(view < VIEW_CAPACITY && "Renderer: clearing view out of range");
     views_[view] = {};
 }
 
 Handle<Camera> Renderer::get_view(ViewID view) const {
-    return view < VIEW_COUNT ? views_[view] : Handle<Camera>{};
+    return view < VIEW_CAPACITY ? views_[view] : Handle<Camera>{};
 }
 
-Camera* Renderer::get_player_camera() {
-    return cameras_.get(views_[View::Player]);
-}
-
-Camera* Renderer::get_screen_camera() {
-    return cameras_.get(views_[View::Screen]);
+Camera* Renderer::get_view_camera(ViewID view) {
+    return cameras_.get(get_view(view));
 }
 
 // -----------------------------------------------------------------------------
@@ -299,14 +297,10 @@ void Renderer::draw_circle(
     const DrawParams& params,
     const bool        filled)
 {
-    Circle new_circle = circle; // TODO: could probably be better
-
-    if (filled) {
-        new_circle.width = new_circle.radius;
-    } else {
-        assert(circle.width < circle.radius); // TODO: needs message
-    }
-    draw<CircleKind>(new_circle, params);
+    // The shader fills the whole disc once width reaches radius.
+    Circle instance = circle;
+    if (filled) instance.width = instance.radius;
+    draw<CircleKind>(instance, params);
 }
 
 // Render Line render object
@@ -341,6 +335,8 @@ void Renderer::draw_sprite(
     const Sprite&     sprite,
     const DrawParams& params)
 {
+    assert(params.material != Material::None &&
+           "Renderer: draw_sprite needs a material (e.g. atlas->material())");
     draw<SpriteKind>(sprite, params);
 }
 

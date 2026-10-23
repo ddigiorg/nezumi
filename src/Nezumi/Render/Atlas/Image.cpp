@@ -17,8 +17,9 @@ namespace Nezumi::Render {
 Image load_image(std::string_view path) {
     const std::string file(path); // stb wants a null-terminated string
 
-    // TODO: load and handle image without flips?
-    stbi_set_flip_vertically_on_load(true);
+    // Rows stay top to bottom as stored in the file: row 0 is v = 0 (see
+    // Atlas.hpp). stb's flip flag is global state, so set it explicitly.
+    stbi_set_flip_vertically_on_load(false);
 
     int w = 0;
     int h = 0;

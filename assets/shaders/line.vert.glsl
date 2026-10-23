@@ -4,9 +4,9 @@
 // Instance draw Line render objects.
 // =============================================================================
 
-#version 460 core
+#version 330 core
 
-layout(std140, binding = 0) uniform Frame {
+layout(std140) uniform Frame {
     mat4 view_proj;
 };
 
@@ -16,7 +16,7 @@ layout(location = 2) in vec2  i_pos_b; // instance { x, y }
 layout(location = 3) in vec4  i_color; // instance { r, g, b, a }
 layout(location = 4) in float i_width; // instance width
 
-layout(location = 0) out vec4 v_color;
+out vec4 v_color;
 
 void main() {
     vec2 dir    = i_pos_b - i_pos_a;

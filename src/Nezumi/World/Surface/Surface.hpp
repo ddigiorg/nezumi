@@ -20,6 +20,9 @@
 #include "Nezumi/World/Chunk/ChunkSpan.hpp"
 #include "Nezumi/World/Entity/Entity.hpp"
 #include "Nezumi/World/Entity/EntityID.hpp"
+#include "Nezumi/World/Entity/EntitySearchFilter.hpp"
+#include "Nezumi/World/Physics/Area2D.hpp"
+#include "Nezumi/World/Physics/Position2D.hpp"
 #include "Nezumi/World/Physics/Sector.hpp"
 #include "Nezumi/World/Physics/SectorID.hpp"
 #include "Nezumi/World/Physics/SectorSpan.hpp"
@@ -98,30 +101,44 @@ public:
 
     // -------------------------------------------------------------------------
     // Spatial Queries (const, deterministic order)
+    //
+    // Entities are matched by position (their feet), except find_colliding,
+    // which matches collision boxes through the sector grid. Results never
+    // depend on hash map or allocation order: chunks are walked row-major,
+    // then in list order within each chunk.
+    //
+    // Safe to call while ticking: positions and chunk lists only change in
+    // World's movement and command phases.
     // -------------------------------------------------------------------------
 
-    // // Visit live entities whose position lies in `area`. Order: chunks
-    // // row-major, then list order within each chunk. `fn(const Entity&)`
-    // // returns true to continue, false to stop.
-    // template <typename Fn>
-    // void visit_entities_in(const BoundingBox& area, Fn&& fn,
-    //                        bool include_inactive = true) const;
+    // Visit live entities whose position lies in `area`. `fn(const Entity&)`
+    // returns true to continue, false to stop. Returns false if stopped.
+    template <typename Fn>
+    bool visit_entities_in(const Area2D& area, Fn&& fn, bool include_inactive = true) const;
 
-    // // Append handles of entities matching the filter to `results`.
-    // void find_entities(const EntitySearchFilter&  filter,
-    //                    std::vector<EntityHandle>& results) const;
+    // Append handles of entities matching `filter` whose position lies in
+    // `area` (or within `radius` of `center`) to `results`.
+    void find_entities_in  (const Area2D&              area,
+                            const EntitySearchFilter&  filter,
+                            std::vector<EntityHandle>& results) const;
 
-    // // Nearest entity matching the filter, or a null handle. Equal distances
-    // // are broken by the lower handle index, so the result never depends on
-    // // iteration order.
-    // EntityHandle find_nearest_entity(const Position2D&         position,
-    //                                  const EntitySearchFilter& filter) const;
+    void find_entities_near(Position2D                 center,
+                            float                      radius,
+                            const EntitySearchFilter&  filter,
+                            std::vector<EntityHandle>& results) const;
 
-    // // Append handles of collidable entities whose collision box overlaps
-    // // `box`, deduplicated and sorted by handle. Uses the sector grid.
-    // void find_colliding(const BoundingBox&         box,
-    //                     EntityHandle               exclude,
-    //                     std::vector<EntityHandle>& results) const;
+    // Nearest entity matching `filter` within `radius` of `center`, or a null
+    // handle. Equal distances go to the lower handle index, so the result
+    // never depends on iteration order.
+    EntityHandle find_nearest_entity(Position2D                center,
+                                     float                     radius,
+                                     const EntitySearchFilter& filter) const;
+
+    // Append handles of collidable entities whose collision box overlaps
+    // `box`, deduplicated and sorted by handle.
+    void find_colliding(const Area2D&              box,
+                        EntityHandle               exclude,
+                        std::vector<EntityHandle>& results) const;
 
 private:
     friend class World;
@@ -153,8 +170,6 @@ private:
     void    remove_from_sectors_ (Entity* entity, SectorSpan span);
     void    mark_dirty_          (Chunk* chunk);
 
-    // static bool matches_(const Entity& entity, const EntitySearchFilter& filter);
-
     // -------------------------------------------------------------------------
     // Members
     // -------------------------------------------------------------------------
@@ -176,29 +191,28 @@ private:
 // Template Definitions
 // -----------------------------------------------------------------------------
 
-// template <typename Fn>
-// void Surface::visit_entities_in(const BoundingBox& area, Fn&& fn,
-//                                bool include_inactive) const
-// {
-//     const ChunkSpan span = ChunkSpan::span_from_box(area);
+template <typename Fn>
+bool Surface::visit_entities_in(const Area2D& area, Fn&& fn, bool include_inactive) const {
+    const ChunkSpan span = ChunkSpan::span_from_box(area);
 
-//     ChunkID id;
-//     for (id.y = span.min.y; id.y <= span.max.y; id.y++) {
-//         for (id.x = span.min.x; id.x <= span.max.x; id.x++) {
-//             const Chunk* chunk = get_chunk(id);
-//             if (!chunk) continue;
+    ChunkID id;
+    for (id.y = span.min.y; id.y <= span.max.y; id.y++) {
+        for (id.x = span.min.x; id.x <= span.max.x; id.x++) {
+            const Chunk* chunk = get_chunk(id);
+            if (!chunk) continue;
 
-//             const bool keep_going = chunk->visit_entities(
-//                 [&](const Entity& entity) {
-//                     if (entity.is_pending_destroy())        return true;
-//                     if (!area.contains(entity.position))    return true;
-//                     return static_cast<bool>(fn(entity));
-//                 },
-//                 include_inactive);
+            const bool keep_going = chunk->visit_entities(
+                [&](const Entity& entity) {
+                    if (!entity.is_alive())              return true;
+                    if (!area.contains(entity.position)) return true;
+                    return static_cast<bool>(fn(entity));
+                },
+                include_inactive);
 
-//             if (!keep_going) return;
-//         }
-//     }
-// }
+            if (!keep_going) return false;
+        }
+    }
+    return true;
+}
 
 } // namespace Nezumi

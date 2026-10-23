@@ -50,8 +50,10 @@ target_include_directories(nezumi_core
 
 target_compile_options(nezumi_core PRIVATE ${NEZUMI_WARNINGS})
 
+# PUBLIC: Core's own headers include SDL (Window.hpp, BasePath.hpp), so
+# anything that includes them needs SDL's include path.
 target_link_libraries(nezumi_core
-    PRIVATE
+    PUBLIC
         SDL3::SDL3
 )
 
@@ -66,6 +68,27 @@ add_library(nezumi_logger STATIC
 target_compile_features(nezumi_logger PUBLIC cxx_std_20)
 target_include_directories(nezumi_logger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(nezumi_logger PRIVATE ${NEZUMI_WARNINGS})
+
+# ------------------------------------------------------------------------------
+# Input
+#
+# InputMap: game-defined actions bound to keys and mouse buttons. Built on the
+# raw input events that Core's EventPump dispatches.
+# ------------------------------------------------------------------------------
+
+add_library(nezumi_input STATIC
+    Nezumi/Input/InputMap.cpp
+)
+
+target_compile_features(nezumi_input PUBLIC cxx_std_20)
+target_include_directories(nezumi_input PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(nezumi_input PRIVATE ${NEZUMI_WARNINGS})
+
+target_link_libraries(nezumi_input
+    PUBLIC
+        nezumi_core
+        glm::glm
+)
 
 # ------------------------------------------------------------------------------
 # RHI
@@ -147,6 +170,8 @@ target_link_libraries(nezumi_render
 
 add_library(nezumi_world STATIC
     Nezumi/World/Chunk/Chunk.cpp
+    Nezumi/World/Entities/Unit.cpp
+    Nezumi/World/Entities/UnitGroup.cpp
     Nezumi/World/Physics/Sector.cpp
     Nezumi/World/Surface/Surface.cpp
     Nezumi/World/World.cpp
@@ -164,6 +189,30 @@ target_link_libraries(nezumi_world
 )
 
 # ------------------------------------------------------------------------------
+# Control
+#
+# Gameplay-facing controllers that turn input into actions on other subsystems
+# (e.g. CameraController drives a Render::Camera). Sits above Render and Input
+# so neither of those has to know about the other.
+# ------------------------------------------------------------------------------
+
+add_library(nezumi_control STATIC
+    Nezumi/Control/CameraController.cpp
+)
+
+target_compile_features(nezumi_control PUBLIC cxx_std_20)
+target_include_directories(nezumi_control PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(nezumi_control PRIVATE ${NEZUMI_WARNINGS})
+
+target_link_libraries(nezumi_control
+    PUBLIC
+        nezumi_core
+        nezumi_input
+        nezumi_render
+        glm::glm
+)
+
+# ------------------------------------------------------------------------------
 # Engine
 # ------------------------------------------------------------------------------
 
@@ -177,7 +226,9 @@ target_compile_options(nezumi_engine PRIVATE ${NEZUMI_WARNINGS})
 
 target_link_libraries(nezumi_engine
     PUBLIC
+        nezumi_control
         nezumi_core
+        nezumi_input
         nezumi_logger
         nezumi_rhi
         nezumi_render

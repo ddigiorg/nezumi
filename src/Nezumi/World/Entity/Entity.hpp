@@ -55,9 +55,6 @@ public:
 
     virtual void tick(WorldContext& ctx) = 0;
 
-    // Nearest entity with no shared faction within radius, or a null handle.
-    EntityHandle find_nearest_enemy(const WorldContext& ctx, float radius) const;
-
     // -------------------------------------------------------------------------
     // Entity Type Identity and Cast
     // -------------------------------------------------------------------------
@@ -88,6 +85,7 @@ public:
     // Query flags
     bool has_flags(EntityFlagsMask mask) const { return has_all(flags_mask, mask); }
 
+    bool is_damageable()     const { return has_all(flags_mask, EntityFlagsMask::Flag24); }
     bool is_active()         const { return has_all(flags_mask, EntityFlagsMask::Flag25); }
     bool is_tickable()       const { return has_all(flags_mask, EntityFlagsMask::Flag26); }
     bool is_drawable()       const { return has_all(flags_mask, EntityFlagsMask::Flag27); }
@@ -103,6 +101,7 @@ public:
         flags_mask |= mask;
     }
 
+    void set_damageable()     { flags_mask |= EntityFlagsMask::Flag24; }
     void set_active()         { flags_mask |= EntityFlagsMask::Flag25; }
     void set_tickable()       { flags_mask |= EntityFlagsMask::Flag26; }
     void set_drawable()       { flags_mask |= EntityFlagsMask::Flag27; }
@@ -127,11 +126,25 @@ public:
 
     // -------------------------------------------------------------------------
     // Factions
+    //
+    // Entities that share any faction are friends; entities that share none
+    // are enemies. Entities with no faction are neutral (enemy of none).
     // -------------------------------------------------------------------------
 
     bool is_faction(EntityFactionsMask flag) const { return has_any (factions_mask, flag); }
     bool is_friend (EntityFactionsMask mask) const { return has_any (factions_mask, mask); }
     bool is_enemy  (EntityFactionsMask mask) const { return has_none(factions_mask, mask); }
+
+    bool is_friend(const Entity& other) const { return is_friend(other.factions_mask); }
+    bool is_enemy (const Entity& other) const {
+        return factions_mask != EntityFactionsMask::None &&
+               other.factions_mask != EntityFactionsMask::None &&
+               is_enemy(other.factions_mask);
+    }
+
+    // Index of the entity's only faction, for per-faction arrays. Asserts the
+    // entity has exactly one.
+    FactionIndex faction_index() const { return Nezumi::faction_index(factions_mask); }
 
     // -------------------------------------------------------------------------
     // Collision
@@ -146,6 +159,8 @@ public:
     bool at(Position2D point) const {
         return position.approx_equal(point, 0.25f); // within 1/4 tile
     }
+
+    float distance2(const Entity& other) const { return position.distance2(other.position); }
 
     // World-space collision box (local bounds offset by position).
     Area2D collision_box() const { return collision_bounds + position; }
@@ -174,12 +189,7 @@ public:
     Area2D             collision_bounds = {};      // 16 B  local, relative to position
     SectorSpan         sector_span      = {};      // 16 B  owned by Surface
 
-    // TODO: move to derived types / a Damageable mixin
-    // uint16_t          health           = 0u;      //  2 B
-    // uint16_t          health_max       = 0u;      //  2 B
-    // uint16_t          mana             = 0u;      //  2 B
-    // uint16_t          mana_max         = 0u;      //  2 B
-    // 24 B free
+    // 32 B free: derived types start here (EntityDamageable adds 4 B)
 };
 
 static_assert(sizeof(Entity) <= 128, "Entity should fit in 2 cache lines");

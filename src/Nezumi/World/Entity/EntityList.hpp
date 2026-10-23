@@ -7,9 +7,10 @@
 #pragma once
 #include "Nezumi/Core/IntrusiveList.hpp"
 #include "Nezumi/Core/IntrusiveListNode.hpp"
-class Entity;
 
 namespace Nezumi {
+
+class Entity;
 
 using EntityListNode = IntrusiveListNode<Entity>;
 using EntityList     = IntrusiveList    <Entity>;

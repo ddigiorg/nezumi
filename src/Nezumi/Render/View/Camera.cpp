@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "Nezumi/Render/View/Camera.hpp"
+#include <cassert>                      // assert
 #include <glm/gtc/matrix_transform.hpp> // orthoZO, projectZO, unProjectZO
 
 namespace Nezumi::Render {
@@ -12,10 +13,12 @@ namespace Nezumi::Render {
 // -----------------------------------------------------------------------------
 
 Camera::Camera(const CameraConfig& config)
-    : origin_(config.origin)
-    , center_(config.center)
-    , size_  (config.size)
+    : origin_         (config.origin)
+    , pixels_per_unit_(config.pixels_per_unit)
+    , position_       (config.position)
+    , size_           (config.size)
 {
+    assert(pixels_per_unit_ > 0.0f && "Camera: pixels_per_unit must be > 0");
     update_proj_();
     update_view_();
 }
@@ -24,24 +27,33 @@ Camera::Camera(const CameraConfig& config)
 // Setters
 // -----------------------------------------------------------------------------
 
-void Camera::pan(glm::vec2 delta) {
-    // Divide by zoom so panning distance is consistent at all zoom levels
-    center_ += delta / zoom_;
+void Camera::translate(glm::vec2 delta) {
+    // Pixels to world units, so translation distance on screen is consistent
+    // at all zoom levels
+    position_ += delta / get_scale();
+    update_view_();
+}
+
+void Camera::set_position(glm::vec2 position) {
+    position_ = position;
     update_view_();
 }
 
 void Camera::set_size(glm::vec2 size) {
+    if (size == size_) return; // the renderer calls this every frame
     size_ = size;
     update_proj_();
 }
 
-void Camera::set_center(glm::vec2 center) {
-    center_ = center;
-    update_view_();
+void Camera::set_zoom(float zoom) {
+    assert(zoom > 0.0f && "Camera: zoom must be > 0");
+    zoom_ = zoom;
+    update_proj_();
 }
 
-void Camera::set_zoom(float zoom) {
-    zoom_ = zoom;
+void Camera::set_pixels_per_unit(float pixels) {
+    assert(pixels > 0.0f && "Camera: pixels_per_unit must be > 0");
+    pixels_per_unit_ = pixels;
     update_proj_();
 }
 
@@ -76,21 +88,30 @@ glm::vec2 Camera::world_to_screen(glm::vec2 world_pos) const {
     return { screen.x, size_.y - screen.y };
 }
 
+glm::vec4 Camera::world_bounds() const {
+    // Screen y points down, so the bottom-left corner is (0, height).
+    const glm::vec2 a = screen_to_world({ 0.0f,    size_.y });
+    const glm::vec2 b = screen_to_world({ size_.x, 0.0f    });
+    return { glm::min(a, b), glm::max(a, b) };
+}
+
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
 
 void Camera::update_proj_() {
-    const float w = size_.x * 0.5f;
-    const float h = size_.y * 0.5f;
+    // Viewport extent in world units
+    const glm::vec2 extent = size_ / get_scale();
+    const float     w      = extent.x * 0.5f;
+    const float     h      = extent.y * 0.5f;
 
     switch (origin_) {
         case CameraOrigin::Centered:
             proj_ = glm::orthoZO(
-                /*.left   = */-w / zoom_,
-                /*.right  = */ w / zoom_,
-                /*.bottom = */-h / zoom_,
-                /*.top    = */ h / zoom_,
+                /*.left   = */-w,
+                /*.right  = */ w,
+                /*.bottom = */-h,
+                /*.top    = */ h,
                 /*.zNear  = */-10.0f,
                 /*.zFar   = */ 10.0f
             );
@@ -99,9 +120,9 @@ void Camera::update_proj_() {
         case CameraOrigin::BottomLeft:
             proj_ = glm::orthoZO(
                 /*.left   = */ 0.0f,
-                /*.right  = */ size_.x / zoom_,
+                /*.right  = */ extent.x,
                 /*.bottom = */ 0.0f,
-                /*.top    = */ size_.y / zoom_,
+                /*.top    = */ extent.y,
                 /*.zNear  = */-10.0f,
                 /*.zFar   = */ 10.0f
             );
@@ -110,8 +131,8 @@ void Camera::update_proj_() {
         case CameraOrigin::TopLeft:
             proj_ = glm::orthoZO(
                 /*.left   = */ 0.0f,
-                /*.right  = */ size_.x / zoom_,
-                /*.bottom = */ size_.y / zoom_,
+                /*.right  = */ extent.x,
+                /*.bottom = */ extent.y,
                 /*.top    = */ 0.0f,
                 /*.zNear  = */-10.0f,
                 /*.zFar   = */ 10.0f
@@ -121,7 +142,7 @@ void Camera::update_proj_() {
 }
 
 void Camera::update_view_() {
-    view_ = glm::translate(glm::mat4(1.0f), glm::vec3(-center_, 0.0f));
+    view_ = glm::translate(glm::mat4(1.0f), glm::vec3(-position_, 0.0f));
 }
 
 } // namespace Nezumi::Render
