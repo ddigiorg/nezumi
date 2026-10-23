@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "Nezumi/World/Entities/Unit.hpp"
+#include "Nezumi/World/Entities/UnitGroup.hpp"
 #include "Nezumi/World/Entity/EntitySearchFilter.hpp"
 #include "Nezumi/World/World.hpp"
 #include "Nezumi/World/WorldContext.hpp"
@@ -77,6 +78,11 @@ void Unit::tick(WorldContext& ctx) {
             }
             break;
         }
+
+        case UnitCommandType::Group: {
+            follow_group_(ctx);
+            break;
+        }
     }
 
     // A command that completed this tick leaves the unit standing still
@@ -104,16 +110,73 @@ const Entity* Unit::resolve_target_(WorldContext& ctx, float leash) {
     return target;
 }
 
-const Entity* Unit::acquire_target_(WorldContext& ctx) {
+const Entity* Unit::acquire_target_(WorldContext& ctx, uint16_t interval) {
     const float aggro = config_->aggro_radius;
     if (aggro <= 0.0f) return nullptr;
-    if ((ctx.tick + handle.index()) % ACQUIRE_INTERVAL != 0) return nullptr;
+    if ((ctx.tick + handle.index()) % interval != 0) return nullptr;
 
     const Surface* surface = ctx.world->get_surface(surface_id);
     assert(surface && "Unit is not on a valid surface");
 
     target_ = surface->find_nearest_entity(position, aggro, EntitySearchFilter::enemies_of(*this));
     return target_ ? ctx.world->get_entity(target_) : nullptr;
+}
+
+void Unit::follow_group_(WorldContext& ctx) {
+    const UnitGroup* group = ctx.world->get_entity_as<UnitGroup>(group_);
+    if (!group || group->is_pending_remove()) {
+        leave_group_(); // the group is gone: stand still from next tick
+        state_ = UnitState::Idle;
+        return;
+    }
+
+    const UnitGroup::Plan& plan = group->plan(ctx.tick);
+
+    if (plan.state == UnitGroupState::Engaged) {
+        const Entity* target = resolve_target_(ctx, config_->aggro_radius);
+        if (!target) target = acquire_target_(ctx, ENGAGED_ACQUIRE_INTERVAL);
+
+        if (target) {
+            engage_(ctx, *target);
+        } else {
+            // Nothing in reach: head for the enemy the group saw
+            state_ = UnitState::Moving;
+            move_toward_(ctx, plan.engage_position, config_->attack_range);
+        }
+        return;
+    }
+
+    target_ = {};
+    hold_slot_(group->slot_position(ctx.tick, group_slot_), plan.velocity, plan.facing,
+               group->config().catch_up_gain);
+}
+
+void Unit::hold_slot_(Position2D slot, Position2D slot_velocity, Position2D facing, float gain) {
+    const Position2D delta = slot - position;
+    const float      dist2 = delta.x * delta.x + delta.y * delta.y;
+
+    if (slot_velocity.is_zero() && dist2 <= ARRIVE_DISTANCE * ARRIVE_DISTANCE) {
+        velocity = {};
+        facing_  = facing;
+        state_   = UnitState::Idle;
+        return;
+    }
+
+    // Feed-forward the slot's velocity and correct the error. With gain * dt
+    // well below 1 the correction never overshoots, and far from the slot
+    // the cap makes the unit catch up at its full speed.
+    Position2D v = slot_velocity + delta * gain;
+
+    const float max_speed = config_->move_speed;
+    const float speed     = std::sqrt(v.x * v.x + v.y * v.y);
+    if (speed > max_speed) v *= max_speed / speed;
+
+    velocity = v;
+    state_   = UnitState::Moving;
+
+    // Small corrections don't turn the unit away from the formation's front
+    if (speed > 0.25f * max_speed) face_(v, speed);
+    else                           facing_ = facing;
 }
 
 void Unit::engage_(WorldContext& ctx, const Entity& target) {

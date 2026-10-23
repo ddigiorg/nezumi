@@ -91,7 +91,8 @@ static constexpr glm::vec4 UNIT_SPRITE_BOUNDS = { -0.25f, -0.25f, 0.25f, 0.75f }
 
 class Wanderer : public Nezumi::Entity {
 public:
-    static constexpr EntityTypeID TYPE_ID{ 2 };
+    // Game-side types start at 100, clear of the engine's (Unit 1, UnitGroup 2)
+    static constexpr EntityTypeID TYPE_ID{ 100 };
 
     static constexpr float SPEED     = 2.0f;  // tiles per second
     static constexpr int   TURN_ODDS = 60;    // 1 in N ticks picks a new heading (~1 s)
