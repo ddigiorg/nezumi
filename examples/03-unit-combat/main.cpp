@@ -49,6 +49,20 @@
 using namespace Nezumi;
 
 // -----------------------------------------------------------------------------
+// Input Actions
+//
+// Bound to keys in on_init. The engine names no actions: each game (here, each
+// example) declares its own.
+// -----------------------------------------------------------------------------
+
+namespace Action {
+    inline constexpr ActionID PanLeft  = 0;
+    inline constexpr ActionID PanRight = 1;
+    inline constexpr ActionID PanDown  = 2;
+    inline constexpr ActionID PanUp    = 3;
+}
+
+// -----------------------------------------------------------------------------
 // Settings
 // -----------------------------------------------------------------------------
 
@@ -194,14 +208,26 @@ public:
         screen_camera_ = renderer->get_view_camera(Render::View::Screen);
         world_camera_->set_pixels_per_unit(TILE_PIXELS);
 
+        // Keys that pan the camera
+        InputMap& input = engine.input();
+        input.bind(Action::PanLeft,  { ScanCode::A, ScanCode::Left  });
+        input.bind(Action::PanRight, { ScanCode::D, ScanCode::Right });
+        input.bind(Action::PanDown,  { ScanCode::S, ScanCode::Down  });
+        input.bind(Action::PanUp,    { ScanCode::W, ScanCode::Up    });
+
         camera_controller_ = std::make_unique<CameraController>(
             /*.events   = */engine.event_bus(),
+            /*.input    = */input,
             /*.renderer = */*renderer,
             /*.camera   = */renderer->get_view(Render::View::World),
             CameraControllerConfig{
                 .zoom_init = 0.5f,
                 .zoom_min  = 0.125f,
                 .zoom_max  = 4.0f,
+                .pan_left  = Action::PanLeft,
+                .pan_right = Action::PanRight,
+                .pan_down  = Action::PanDown,
+                .pan_up    = Action::PanUp,
             }
         );
 

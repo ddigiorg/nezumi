@@ -70,6 +70,27 @@ target_include_directories(nezumi_logger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(nezumi_logger PRIVATE ${NEZUMI_WARNINGS})
 
 # ------------------------------------------------------------------------------
+# Input
+#
+# InputMap: game-defined actions bound to keys and mouse buttons. Built on the
+# raw input events that Core's EventPump dispatches.
+# ------------------------------------------------------------------------------
+
+add_library(nezumi_input STATIC
+    Nezumi/Input/InputMap.cpp
+)
+
+target_compile_features(nezumi_input PUBLIC cxx_std_20)
+target_include_directories(nezumi_input PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(nezumi_input PRIVATE ${NEZUMI_WARNINGS})
+
+target_link_libraries(nezumi_input
+    PUBLIC
+        nezumi_core
+        glm::glm
+)
+
+# ------------------------------------------------------------------------------
 # RHI
 #
 # nezumi_glad is linked PRIVATE by nezumi_rhi, so nothing that links the rhi
@@ -186,6 +207,7 @@ target_compile_options(nezumi_control PRIVATE ${NEZUMI_WARNINGS})
 target_link_libraries(nezumi_control
     PUBLIC
         nezumi_core
+        nezumi_input
         nezumi_render
         glm::glm
 )
@@ -206,6 +228,7 @@ target_link_libraries(nezumi_engine
     PUBLIC
         nezumi_control
         nezumi_core
+        nezumi_input
         nezumi_logger
         nezumi_rhi
         nezumi_render

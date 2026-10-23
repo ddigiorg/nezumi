@@ -9,6 +9,7 @@
 #include "Nezumi/Core/Stopwatch.hpp"
 #include "Nezumi/Core/Window.hpp"
 #include "Nezumi/Event/EventBus.hpp"
+#include "Nezumi/Input/InputMap.hpp"
 #include "Nezumi/Logger/Logger.hpp"
 #include "Nezumi/Render/Renderer.hpp"
 #include "Nezumi/RHI/Device.hpp"
@@ -77,6 +78,7 @@ public:
     Clock&     clock()      { return *clock_;      }
     EventBus&  event_bus()  { return *event_bus_;  }
     EventPump& event_pump() { return *event_pump_; }
+    InputMap&  input()      { return *input_;      }
     Logger&    logger()     { return *logger_;     }
     Random&    random()     { return *random_;     }
     Stopwatch& stopwatch()  { return *stopwatch_;  }
@@ -119,6 +121,7 @@ private:
     std::unique_ptr<Clock    > clock_      = nullptr;
     std::unique_ptr<EventBus > event_bus_  = nullptr;
     std::unique_ptr<EventPump> event_pump_ = nullptr;
+    std::unique_ptr<InputMap > input_      = nullptr;
     std::unique_ptr<Logger   > logger_     = nullptr;
     std::unique_ptr<Random   > random_     = nullptr;
     std::unique_ptr<Stopwatch> stopwatch_  = nullptr;

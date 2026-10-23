@@ -4,18 +4,16 @@
 
 #include "Nezumi/Control/CameraController.hpp"
 #include "Nezumi/Event/EventBus.hpp"
-#include "Nezumi/Input/Events/OnKeyDown.hpp"
-#include "Nezumi/Input/Events/OnKeyUp.hpp"
 #include "Nezumi/Input/Events/OnMouseButtonDown.hpp"
 #include "Nezumi/Input/Events/OnMouseButtonUp.hpp"
 #include "Nezumi/Input/Events/OnMouseMotion.hpp"
 #include "Nezumi/Input/Events/OnMouseWheel.hpp"
-#include "Nezumi/Input/ScanCode.hpp"
+#include "Nezumi/Input/InputMap.hpp"
 #include "Nezumi/Render/Renderer.hpp"
 #include "Nezumi/Render/View/Camera.hpp"
 #include <algorithm> // clamp, max, min
 #include <cassert>   // assert
-#include <cmath>     // pow
+#include <cmath>     // abs, exp, pow
 
 namespace Nezumi {
 
@@ -24,34 +22,18 @@ namespace {
 // Longest frame delta update() will apply (seconds)
 constexpr float MAX_DT = 0.1f;
 
-// Bits of CameraController::held_keys_
-enum HeldKey_ : std::uint8_t {
-    HELD_LEFT  = 1u << 0,
-    HELD_RIGHT = 1u << 1,
-    HELD_DOWN  = 1u << 2,
-    HELD_UP    = 1u << 3,
-};
-
-// Movement bit for a scancode, or 0 if the key doesn't move the camera
-std::uint8_t held_key_bit_(ScanCode scancode) {
-    switch (scancode) {
-        case ScanCode::A: case ScanCode::Left:  return HELD_LEFT;
-        case ScanCode::D: case ScanCode::Right: return HELD_RIGHT;
-        case ScanCode::S: case ScanCode::Down:  return HELD_DOWN;
-        case ScanCode::W: case ScanCode::Up:    return HELD_UP;
-        default:                                return 0u;
-    }
-}
-
 // Clamp config values to something the controller can work with
 CameraControllerConfig sanitize_(CameraControllerConfig config) {
     assert(config.zoom_min  >  0.0f            && "CameraController: zoom_min must be > 0");
     assert(config.zoom_max  >= config.zoom_min && "CameraController: zoom_max must be >= zoom_min");
     assert(config.zoom_step >  1.0f            && "CameraController: zoom_step must be > 1");
+    assert(config.follow_rate >= 0.0f          && "CameraController: follow_rate must be >= 0");
 
     config.zoom_min  = std::max(config.zoom_min, 1e-4f);
     config.zoom_max  = std::max(config.zoom_max, config.zoom_min);
     config.zoom_init = std::clamp(config.zoom_init, config.zoom_min, config.zoom_max);
+    config.follow_rate      = std::max(config.follow_rate, 0.0f);
+    config.follow_dead_zone = glm::max(config.follow_dead_zone, glm::vec2(0.0f));
     return config;
 }
 
@@ -63,12 +45,14 @@ CameraControllerConfig sanitize_(CameraControllerConfig config) {
 
 CameraController::CameraController(
     EventBus&                     events,
+    const InputMap&               input,
     Render::Renderer&             renderer,
     Handle<Render::Camera>        camera,
     const CameraControllerConfig& config)
         : config_  (sanitize_(config))
         , camera_  (camera)
         , events_  (events)
+        , input_   (input)
         , renderer_(renderer)
 {
     if (Render::Camera* c = get_camera_())
@@ -92,12 +76,17 @@ void CameraController::update(float dt) {
     Render::Camera* camera = get_camera_();
     if (!camera) return;
 
+    dt = std::clamp(dt, 0.0f, MAX_DT);
+
+    if (is_following_) {
+        follow_(*camera, dt);
+        return;
+    }
+
     glm::vec2 dir = { 0.0f, 0.0f };
     if (config_.enable_key_pan ) dir += key_dir_();
     if (config_.enable_edge_pan) dir += edge_dir_(*camera);
     if (dir == glm::vec2(0.0f)) return;
-
-    dt = std::clamp(dt, 0.0f, MAX_DT);
 
     // Clamp then normalize, so diagonals aren't faster and key + edge pan in
     // the same direction don't stack
@@ -120,6 +109,24 @@ void CameraController::set_enable_drag_pan(bool set) {
 }
 
 // -----------------------------------------------------------------------------
+// Follow
+// -----------------------------------------------------------------------------
+
+void CameraController::set_follow_target(glm::vec2 target, bool snap) {
+    follow_target_ = target;
+    is_following_  = true;
+    is_dragging_   = false; // a drag in progress would fight the follow
+
+    if (!snap) return;
+    if (Render::Camera* camera = get_camera_())
+        camera->set_position(target);
+}
+
+void CameraController::clear_follow_target() {
+    is_following_ = false;
+}
+
+// -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
 
@@ -130,35 +137,21 @@ Render::Camera* CameraController::get_camera_() const {
 
 void CameraController::subscribe_() {
 
-    // Key state is tracked even while disabled, so re-enabling with a key
-    // already held behaves as expected.
-    listeners_[0] = events_.subscribe<OnKeyDown>(
-        [this](const OnKeyDown& e) {
-            held_keys_ |= held_key_bit_(e.scancode);
-        }
-    );
-
-    listeners_[1] = events_.subscribe<OnKeyUp>(
-        [this](const OnKeyUp& e) {
-            held_keys_ &= static_cast<std::uint8_t>(~held_key_bit_(e.scancode));
-        }
-    );
-
-    listeners_[2] = events_.subscribe<OnMouseButtonDown>(
+    listeners_[0] = events_.subscribe<OnMouseButtonDown>(
         [this](const OnMouseButtonDown& e) {
-            if (!config_.enabled || !config_.enable_drag_pan) return;
+            if (!config_.enabled || !config_.enable_drag_pan || is_following_) return;
             if (e.button == config_.drag_button) is_dragging_ = true;
         }
     );
 
     // Released regardless of enabled, so a drag never sticks
-    listeners_[3] = events_.subscribe<OnMouseButtonUp>(
+    listeners_[1] = events_.subscribe<OnMouseButtonUp>(
         [this](const OnMouseButtonUp& e) {
             if (e.button == config_.drag_button) is_dragging_ = false;
         }
     );
 
-    listeners_[4] = events_.subscribe<OnMouseMotion>(
+    listeners_[2] = events_.subscribe<OnMouseMotion>(
         [this](const OnMouseMotion& e) {
             cursor_     = { e.pos_x, e.pos_y };
             has_cursor_ = true;
@@ -173,7 +166,7 @@ void CameraController::subscribe_() {
         }
     );
 
-    listeners_[5] = events_.subscribe<OnMouseWheel>(
+    listeners_[3] = events_.subscribe<OnMouseWheel>(
         [this](const OnMouseWheel& e) {
             if (!config_.enabled || !config_.enable_wheel_zoom) return;
             if (e.rel_y != 0.0f) zoom_(e.rel_y);
@@ -193,7 +186,9 @@ void CameraController::zoom_(float notches) {
     );
     if (new_zoom == old_zoom) return;
 
-    if (!config_.zoom_to_cursor || !has_cursor_) {
+    // While following, zoom about the screen center: shifting the camera
+    // toward the cursor would only be undone by the follow
+    if (!config_.zoom_to_cursor || !has_cursor_ || is_following_) {
         camera->set_zoom(new_zoom);
         return;
     }
@@ -206,13 +201,32 @@ void CameraController::zoom_(float notches) {
     camera->set_position(camera->get_position() + (before - after));
 }
 
+void CameraController::follow_(Render::Camera& camera, float dt) {
+    const glm::vec2 position = camera.get_position();
+    const glm::vec2 offset   = follow_target_ - position;
+
+    // Only the part of the offset outside the dead zone pulls the camera, so
+    // the target moves freely inside it and is held at its edge
+    const glm::vec2 excess = glm::sign(offset)
+                           * glm::max(glm::abs(offset) - config_.follow_dead_zone, 0.0f);
+    if (excess == glm::vec2(0.0f)) return;
+
+    // Exponential ease: covers the same fraction of the gap per second at any
+    // frame rate. A rate of 0 snaps.
+    const float t = config_.follow_rate > 0.0f
+        ? 1.0f - std::exp(-config_.follow_rate * dt)
+        : 1.0f;
+
+    camera.set_position(position + excess * t);
+}
+
 glm::vec2 CameraController::key_dir_() const {
-    glm::vec2 dir = { 0.0f, 0.0f };
-    if (held_keys_ & HELD_LEFT ) dir.x -= 1.0f;
-    if (held_keys_ & HELD_RIGHT) dir.x += 1.0f;
-    if (held_keys_ & HELD_DOWN ) dir.y -= 1.0f;
-    if (held_keys_ & HELD_UP   ) dir.y += 1.0f;
-    return dir;
+    return input_.axis2d(
+        config_.pan_left,
+        config_.pan_right,
+        config_.pan_down,
+        config_.pan_up
+    );
 }
 
 glm::vec2 CameraController::edge_dir_(const Render::Camera& camera) const {

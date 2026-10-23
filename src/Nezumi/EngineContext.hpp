@@ -6,6 +6,7 @@ class Clock;
 class Engine;
 class EventBus;
 class EventPump;
+class InputMap;
 class Logger;
 class Random;
 class Stopwatch;
@@ -28,6 +29,7 @@ public:
     Clock*     clock      = nullptr;
     EventBus*  event_bus  = nullptr;
     EventPump* event_pump = nullptr;
+    InputMap*  input      = nullptr;
     Logger*    logger     = nullptr;
     Random*    random     = nullptr;
     Stopwatch* stopwatch  = nullptr;
