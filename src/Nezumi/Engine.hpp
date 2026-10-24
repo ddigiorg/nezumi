@@ -13,6 +13,7 @@
 #include "Nezumi/Logger/Logger.hpp"
 #include "Nezumi/Render/Renderer.hpp"
 #include "Nezumi/RHI/Device.hpp"
+#include "Nezumi/UI/Context.hpp"
 #include "Nezumi/World/World.hpp"
 #include "Nezumi/EngineConfig.hpp"
 #include "Nezumi/EngineContext.hpp"
@@ -87,6 +88,7 @@ public:
     Window*           window()   { return window_  .get(); }
     RHI::Device*      device()   { return device_  .get(); }
     Render::Renderer* renderer() { return renderer_.get(); }
+    UI::Context*      ui()       { return ui_      .get(); }
 
     EngineContext& context() { return context_; }
 
@@ -132,6 +134,7 @@ private:
     std::unique_ptr<Window          > window_   = nullptr;
     std::unique_ptr<RHI::Device     > device_   = nullptr;
     std::unique_ptr<Render::Renderer> renderer_ = nullptr;
+    std::unique_ptr<UI::Context     > ui_       = nullptr;
 
     // Miscellaneous
     EventListenerID on_exit_   = {};

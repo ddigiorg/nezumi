@@ -142,6 +142,7 @@ add_library(nezumi_render STATIC
     Nezumi/Render/Kinds/RectangleSDFKind.cpp
     Nezumi/Render/Kinds/SpriteKind.cpp
     Nezumi/Render/Kinds/TextGlyphSDFKind.cpp
+    Nezumi/Render/Kinds/UIQuadKind.cpp
     Nezumi/Render/Material/MaterialTable.cpp
     Nezumi/Render/Shader/ShaderLibrary.cpp
     Nezumi/Render/Text/Font.cpp
@@ -213,6 +214,31 @@ target_link_libraries(nezumi_control
 )
 
 # ------------------------------------------------------------------------------
+# UI
+#
+# Immediate-mode panels and widgets (menus, settings, debug tools). Draws
+# through the renderer's UIQuad kind, reads raw input events, and claims the
+# mouse and keyboard from the InputMap while it uses them.
+# ------------------------------------------------------------------------------
+
+add_library(nezumi_ui STATIC
+    Nezumi/UI/Context.cpp
+    Nezumi/UI/Widgets.cpp
+)
+
+target_compile_features(nezumi_ui PUBLIC cxx_std_20)
+target_include_directories(nezumi_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(nezumi_ui PRIVATE ${NEZUMI_WARNINGS})
+
+target_link_libraries(nezumi_ui
+    PUBLIC
+        nezumi_core
+        nezumi_input
+        nezumi_render
+        glm::glm
+)
+
+# ------------------------------------------------------------------------------
 # Engine
 # ------------------------------------------------------------------------------
 
@@ -232,6 +258,7 @@ target_link_libraries(nezumi_engine
         nezumi_logger
         nezumi_rhi
         nezumi_render
+        nezumi_ui
         nezumi_world
 )
 

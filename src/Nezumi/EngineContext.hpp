@@ -21,6 +21,10 @@ namespace RHI {
     class Device;
 }
 
+namespace UI {
+    class Context;
+}
+
 class EngineContext {
 public:
     Engine* engine = nullptr;
@@ -39,6 +43,7 @@ public:
     RHI::Device*      device   = nullptr;
     Window*           window   = nullptr;
     Render::Renderer* renderer = nullptr;
+    UI::Context*      ui       = nullptr;
 };
 
 } // namespace Nezumi

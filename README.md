@@ -12,6 +12,7 @@
 - **Render Hardware Interface (RHI)**: Device abstraction layer (Backends: OpenGL; Vulkan and DX12 planned) 
 - **Renderer**: For loading graphics assets, setting up camera views, and automatically batch drawing render objects (sprites, shapes, etc.)
 - **Controllers**: Input-driven gameplay helpers, e.g. an RTS-style camera controller (key/edge/drag pan, zoom to cursor)
+- **UI**: Immediate-mode panels (movable, resizable, scrolling) and widgets (buttons, checkboxes, toggles, sliders, text fields, dropdowns), drawn in one batch, with cursor styles and input capture
 - **Platform**: SDL3 for windowing, input, and application-level events
 - **Entity System**: Supports simulation of ~20k active units at 60 FPS
 - **World System**: Chunk-based sparse set of "Realms" (similar to Factorio surfaces)

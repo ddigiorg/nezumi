@@ -140,6 +140,7 @@ void CameraController::subscribe_() {
     listeners_[0] = events_.subscribe<OnMouseButtonDown>(
         [this](const OnMouseButtonDown& e) {
             if (!config_.enabled || !config_.enable_drag_pan || is_following_) return;
+            if (input_.is_mouse_captured()) return; // pressed on the UI
             if (e.button == config_.drag_button) is_dragging_ = true;
         }
     );
@@ -169,6 +170,7 @@ void CameraController::subscribe_() {
     listeners_[3] = events_.subscribe<OnMouseWheel>(
         [this](const OnMouseWheel& e) {
             if (!config_.enabled || !config_.enable_wheel_zoom) return;
+            if (input_.is_mouse_captured()) return; // scrolling a UI panel
             if (e.rel_y != 0.0f) zoom_(e.rel_y);
         }
     );
@@ -230,7 +232,8 @@ glm::vec2 CameraController::key_dir_() const {
 }
 
 glm::vec2 CameraController::edge_dir_(const Render::Camera& camera) const {
-    if (!has_cursor_) return { 0.0f, 0.0f };
+    // No edge pan while the cursor rests on a UI panel at the screen edge
+    if (!has_cursor_ || input_.is_mouse_captured()) return { 0.0f, 0.0f };
 
     // Cursor is in window pixels with y down; the camera is sized to the
     // backbuffer, which matches the window unless the display is HiDPI.

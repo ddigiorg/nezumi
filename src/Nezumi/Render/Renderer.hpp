@@ -108,6 +108,8 @@
 #include "Nezumi/Render/Kinds/SpriteKind.hpp"
 #include "Nezumi/Render/Kinds/TextGlyphSDF.hpp"
 #include "Nezumi/Render/Kinds/TextGlyphSDFKind.hpp"
+#include "Nezumi/Render/Kinds/UIQuad.hpp"
+#include "Nezumi/Render/Kinds/UIQuadKind.hpp"
 #include "Nezumi/Render/Material/MaterialID.hpp"
 #include "Nezumi/Render/Material/MaterialTable.hpp"
 #include "Nezumi/Render/Shader/ShaderLibrary.hpp"

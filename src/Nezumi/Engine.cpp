@@ -48,6 +48,7 @@ Engine::Engine(const EngineConfig& config)
         .device     = device_    .get(),
         .window     = window_    .get(),
         .renderer   = renderer_  .get(),
+        .ui         = ui_        .get(),
     };
 
     logger_->info("Constructed Nezumi Engine (v{})", Nezumi::VersionString);
@@ -57,6 +58,8 @@ Engine::~Engine() {
     if (on_exit_  ) event_bus_->unsubscribe(on_exit_  );
     if (on_escape_) event_bus_->unsubscribe(on_escape_);
 
+    if (input_ && ui_) input_->set_capture(nullptr);
+    if (ui_        ) ui_        .reset();
     if (renderer_  ) renderer_  .reset();
     if (device_    ) device_    .reset();
     if (window_    ) window_    .reset();
@@ -159,6 +162,16 @@ void Engine::setup_graphics_subsystems_() {
     if (!renderer_) {
         throw std::runtime_error("Failed to create Render::Renderer");
     }
+
+    // Create UI, and let it claim the mouse and keyboard from game actions
+    // while the player uses it
+    ui_ = std::make_unique<UI::Context>(
+        /*.events   = */*event_bus_,
+        /*.renderer = */*renderer_,
+        /*.window   = */window_.get(),
+        /*.config   = */config_.ui
+    );
+    input_->set_capture(ui_.get());
 }
 
 void Engine::setup_events_() {
@@ -214,7 +227,9 @@ void Engine::run_draw_(IApplication& app) {
     statswatch_->start();
 
     renderer_->begin_frame();
+    if (ui_) ui_->begin_frame();
     app.on_draw(*this);
+    if (ui_) ui_->end_frame();
     renderer_->end_frame();
     event_bus_->dispatch(OnGameDrawn{});
 

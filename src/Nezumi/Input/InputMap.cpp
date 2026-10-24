@@ -110,10 +110,13 @@ void InputMap::clear_edges() {
 
 void InputMap::subscribe_() {
 
-    // Key repeats are ignored: holding a key is one press
+    // Key repeats are ignored: holding a key is one press. Presses the UI
+    // captured never reach actions; releases always do (set_down_ ignores a
+    // release of something it never saw go down).
     listeners_[0] = events_.subscribe<OnKeyDown>(
         [this](const OnKeyDown& e) {
-            if (!e.repeat) set_down_(InputSource::key(e.scancode), true);
+            if (e.repeat || is_keyboard_captured()) return;
+            set_down_(InputSource::key(e.scancode), true);
         }
     );
 
@@ -125,6 +128,7 @@ void InputMap::subscribe_() {
 
     listeners_[2] = events_.subscribe<OnMouseButtonDown>(
         [this](const OnMouseButtonDown& e) {
+            if (is_mouse_captured()) return;
             set_down_(InputSource::mouse(e.button), true);
         }
     );

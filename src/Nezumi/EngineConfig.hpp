@@ -9,6 +9,7 @@
 #include "Nezumi/Logger/LoggerConfig.hpp"
 #include "Nezumi/Render/RendererConfig.hpp"
 #include "Nezumi/RHI/DeviceConfig.hpp"
+#include "Nezumi/UI/UIConfig.hpp"
 #include "Nezumi/World/WorldConfig.hpp"
 
 namespace Nezumi {
@@ -49,6 +50,8 @@ struct EngineConfig {
         .frames_in_flight = 2,
         .srgb_backbuffer = false,
     };
+
+    UI::UIConfig ui = {}; // font, view and layer, style
 
     WindowConfig window = {
         .title      = "Game Window", // TODO: make string_view

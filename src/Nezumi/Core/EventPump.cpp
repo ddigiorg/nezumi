@@ -11,9 +11,11 @@
 #include "Nezumi/Input/Events/OnMouseButtonUp.hpp"
 #include "Nezumi/Input/Events/OnMouseMotion.hpp"
 #include "Nezumi/Input/Events/OnMouseWheel.hpp"
+#include "Nezumi/Input/Events/OnTextInput.hpp"
 #include "Nezumi/Input/Mouse.hpp"
 #include "Nezumi/Input/ScanCode.hpp"
 #include <SDL3/SDL.h>
+#include <cstring> // strncpy
 
 namespace Nezumi {
 
@@ -91,6 +93,13 @@ void EventPump::poll_events() {
             events_.dispatch(OnKeyUp{
                 .scancode = static_cast<ScanCode>(sdl.key.scancode),
             });
+            break;
+        }
+
+        case SDL_EVENT_TEXT_INPUT: {
+            OnTextInput e;
+            if (sdl.text.text) std::strncpy(e.text, sdl.text.text, sizeof e.text - 1);
+            events_.dispatch(e);
             break;
         }
 

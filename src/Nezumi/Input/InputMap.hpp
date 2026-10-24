@@ -25,11 +25,17 @@
 //
 // Owned by the Engine (Engine::input()). Listens to the raw input events on
 // the EventBus, so those stay available for anything that wants them.
+//
+// Capture: while the UI claims the mouse (cursor over a panel) or keyboard
+// (a text field has focus), presses of that device don't reach actions.
+// Releases always do, so nothing sticks. Code that reads raw events itself
+// (CameraController's wheel zoom) asks is_mouse_captured() first.
 // =============================================================================
 
 #pragma once
 #include "Nezumi/Event/EventListenerID.hpp"
 #include "Nezumi/Input/ActionID.hpp"
+#include "Nezumi/Input/IInputCapture.hpp"
 #include "Nezumi/Input/InputSource.hpp"
 #include "Nezumi/Input/Mouse.hpp"
 #include "Nezumi/Input/ScanCode.hpp"
@@ -127,6 +133,18 @@ public:
     bool is_down(MouseButton button) const { return is_down(InputSource::mouse(button)); }
 
     // -------------------------------------------------------------------------
+    // Capture
+    //
+    // The Engine registers its UI here; nullptr (the default) captures
+    // nothing. The capturer must outlive the InputMap or be unset first.
+    // -------------------------------------------------------------------------
+
+    void set_capture(const IInputCapture* capture) { capture_ = capture; }
+
+    bool is_mouse_captured   () const { return capture_ && capture_->wants_mouse();    }
+    bool is_keyboard_captured() const { return capture_ && capture_->wants_keyboard(); }
+
+    // -------------------------------------------------------------------------
     // Engine
     // -------------------------------------------------------------------------
 
@@ -168,6 +186,8 @@ private:
     // each was held before the change
     struct Change_ { ActionID action; bool was_held; };
     std::vector<Change_> changes_ = {};
+
+    const IInputCapture* capture_ = nullptr;
 
     EventBus& events_;
     std::array<EventListenerID, 4> listeners_ = {};
