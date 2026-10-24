@@ -56,6 +56,7 @@ Renderer::Renderer(RHI::Device& device, const RendererConfig& config)
     kinds_.ensure<ArrowKind            >(context_);
     kinds_.ensure<CircleKind           >(context_);
     kinds_.ensure<LineKind             >(context_);
+    kinds_.ensure<QuadKind             >(context_);
     kinds_.ensure<RectangleFilledKind  >(context_);
     kinds_.ensure<RectangleUnfilledKind>(context_);
     kinds_.ensure<RectangleSDFKind     >(context_);
@@ -324,6 +325,16 @@ void Renderer::draw_line(
     const DrawParams& params)
 {
     draw<LineKind>(line, params);
+}
+
+// Render Quad render object
+void Renderer::draw_quad(
+    const Quad&       quad,
+    const DrawParams& params)
+{
+    assert(params.material != Material::None &&
+           "Renderer: draw_quad needs a material (e.g. atlas->material())");
+    draw<QuadKind>(quad, params);
 }
 
 // Render Rectangle render object

@@ -39,6 +39,9 @@
 //   - Per-view matrices live in one uniform buffer, selected with a dynamic
 //     offset: one group-0 bind per view per frame.
 //   - Camera origins: Centered (world) and BottomLeft (screen); both keep y up.
+//   - Projection (top-down or 2:1 isometric) maps world to view space on
+//     the CPU, before submission; cameras and kinds only see view space.
+//     Quad draws square textures as projected diamonds.
 //
 // Materials & resources
 //
@@ -99,6 +102,8 @@
 #include "Nezumi/Render/Kinds/CircleKind.hpp"
 #include "Nezumi/Render/Kinds/Line.hpp"
 #include "Nezumi/Render/Kinds/LineKind.hpp"
+#include "Nezumi/Render/Kinds/Quad.hpp"
+#include "Nezumi/Render/Kinds/QuadKind.hpp"
 #include "Nezumi/Render/Kinds/Rectangle.hpp"
 #include "Nezumi/Render/Kinds/RectangleFilledKind.hpp"
 #include "Nezumi/Render/Kinds/RectangleUnfilledKind.hpp"
@@ -122,6 +127,7 @@
 #include "Nezumi/Render/View/Camera.hpp"
 #include "Nezumi/Render/View/CameraConfig.hpp"
 #include "Nezumi/Render/View/CameraOrigin.hpp"
+#include "Nezumi/Render/View/Projection.hpp"
 #include "Nezumi/Render/View/ViewID.hpp"
 #include "Nezumi/RHI/RHI.hpp"
 
@@ -248,6 +254,11 @@ public:
     // Render Line render object
     void draw_line(
         const Line&       line,
+        const DrawParams& params = {});
+
+    // Render Quad render object (textured, 4 free corners; see Quad.hpp)
+    void draw_quad(
+        const Quad&       quad,
         const DrawParams& params = {});
 
     // Render Rectangle render object

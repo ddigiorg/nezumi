@@ -137,6 +137,7 @@ add_library(nezumi_render STATIC
     Nezumi/Render/Kinds/ArrowKind.cpp
     Nezumi/Render/Kinds/CircleKind.cpp
     Nezumi/Render/Kinds/LineKind.cpp
+    Nezumi/Render/Kinds/QuadKind.cpp
     Nezumi/Render/Kinds/RectangleFilledKind.cpp
     Nezumi/Render/Kinds/RectangleUnfilledKind.cpp
     Nezumi/Render/Kinds/RectangleSDFKind.cpp
