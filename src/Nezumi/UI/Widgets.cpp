@@ -356,6 +356,13 @@ bool Context::dropdown(std::string_view label, int& selected,
     if (list.max.y > screen_size_.y && box.min.y - 2.0f - list_h >= 0.0f)
         list = { { box.min.x, box.min.y - 2.0f - list_h }, { box.max.x, box.min.y - 2.0f } };
 
+    // Fits neither way (a long list on a short screen): slide it on screen,
+    // over its box if need be. Panels stay on screen, so x already fits.
+    if (screen_size_.y > 0.0f) {
+        const float y = std::clamp(list.min.y, 0.0f, std::max(0.0f, screen_size_.y - list_h));
+        list = Rect::from_size({ list.min.x, y }, list.size());
+    }
+
     popup_rect_  = list;
     popup_owner_ = box;
     popup_drawn_ = true;

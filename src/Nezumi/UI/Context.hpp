@@ -11,7 +11,7 @@
 //
 //       if (show_debug_ && ui.begin_panel("Debug", &show_debug_, config)) {
 //           ui.heading("Rendering");
-//           ui.checkbox("show-tile-grid", tile_grid_);
+//           ui.checkbox("show-world-grid", world_grid_);
 //           if (ui.button("Restart")) restart_requested_ = true;
 //           ui.slider("zoom", zoom_, 0.25f, 4.0f);
 //           ui.end_panel();
@@ -56,6 +56,10 @@
 //
 // Screen pixels, top-left origin, y down, like every UI toolkit. The context
 // flips to the renderer's y-up screen view when it submits.
+//
+// Panels stay inside the screen: dragging stops at its edges, and when the
+// window shrinks, panels slide back on (and sized ones shrink, down to their
+// min_size). Open dropdown lists stay on screen too.
 //
 // ## Not handled (yet)
 //

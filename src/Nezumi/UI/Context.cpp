@@ -286,11 +286,10 @@ void Context::end_panel() {
         p.size   = glm::max(p.size, p.min_size);
 
         // A centered (pivoted) panel can only be placed once its size is
-        // known. Shift what was already laid out by however far it moved.
-        if (p.place) {
-            p.pos = p.anchor - p.pivot * p.size;
-            clamp_to_screen_(p);
-        }
+        // known, and a panel that grew may now hang off the screen. Shift
+        // what was already laid out by however far it moved.
+        if (p.place) p.pos = p.anchor - p.pivot * p.size;
+        clamp_to_screen_(p);
         const glm::vec2 d = p.pos - old_pos;
         if (d != glm::vec2(0.0f)) {
             for (UIQuad& q : p.body) {
@@ -440,14 +439,17 @@ void Context::update_panel_drag_(Panel& panel) {
         return;
     }
 
-    // Resize: move the dragged edges, keep the others still
+    // Resize: move the dragged edges, keep the others still. A dragged edge
+    // stops at the screen's edge (clamping afterwards would move the panel
+    // instead, dragging the opposite edge along).
     glm::vec2 lo = drag_pos_;
     glm::vec2 hi = drag_pos_ + drag_size_;
     const glm::vec2 min = panel.min_size;
-    if (l) lo.x = std::min(lo.x + d.x, hi.x - min.x);
-    if (r) hi.x = std::max(hi.x + d.x, lo.x + min.x);
-    if (t) lo.y = std::min(lo.y + d.y, hi.y - min.y);
-    if (b) hi.y = std::max(hi.y + d.y, lo.y + min.y);
+    const glm::vec2 max = screen_size_;
+    if (l) lo.x = std::min(std::max(lo.x + d.x, 0.0f),  hi.x - min.x);
+    if (r) hi.x = std::max(std::min(hi.x + d.x, max.x), lo.x + min.x);
+    if (t) lo.y = std::min(std::max(lo.y + d.y, 0.0f),  hi.y - min.y);
+    if (b) hi.y = std::max(std::min(hi.y + d.y, max.y), lo.y + min.y);
     panel.pos  = lo;
     panel.size = hi - lo;
 }
@@ -455,12 +457,16 @@ void Context::update_panel_drag_(Panel& panel) {
 void Context::clamp_to_screen_(Panel& panel) const {
     if (screen_size_.x <= 0.0f || screen_size_.y <= 0.0f) return;
 
-    // Keep a grabbable piece of the title bar on screen, so a panel can't
-    // be lost off an edge (or above the top, where the title would hide)
-    const float keep = std::min(48.0f, panel.size.x);
-    panel.pos.x = std::clamp(panel.pos.x, keep - panel.size.x, screen_size_.x - keep);
-    panel.pos.y = std::clamp(panel.pos.y, 0.0f,
-                             std::max(0.0f, screen_size_.y - std::max(title_height_(panel), 24.0f)));
+    // A sized panel bigger than the screen (say, after the window shrank)
+    // shrinks to fit, down to its min_size. AutoSize panels fit their
+    // content instead, so they keep their size.
+    if (!panel.has(PanelFlags::AutoSize))
+        panel.size = glm::max(glm::min(panel.size, screen_size_), panel.min_size);
+
+    // Keep the whole panel on screen. One still bigger than the screen sits
+    // at the top-left, where its title bar stays reachable.
+    panel.pos = glm::clamp(panel.pos, glm::vec2(0.0f),
+                           glm::max(screen_size_ - panel.size, glm::vec2(0.0f)));
 }
 
 float Context::title_height_(const Panel& panel) const {
