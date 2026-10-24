@@ -122,11 +122,16 @@ void EventPump::poll_events() {
         }
 
         case SDL_EVENT_MOUSE_MOTION: {
+            // SDL reports window points; cameras and the UI work in the
+            // pixels the window renders, which differ on HiDPI screens
+            SDL_Window* window  = SDL_GetWindowFromID(sdl.motion.windowID);
+            const float density = window ? SDL_GetWindowPixelDensity(window) : 0.0f;
+            const float s       = density > 0.0f ? density : 1.0f;
             events_.dispatch(OnMouseMotion{
-                .pos_x = sdl.motion.x,
-                .pos_y = sdl.motion.y,
-                .rel_x = sdl.motion.xrel,
-                .rel_y = sdl.motion.yrel,
+                .pos_x = sdl.motion.x    * s,
+                .pos_y = sdl.motion.y    * s,
+                .rel_x = sdl.motion.xrel * s,
+                .rel_y = sdl.motion.yrel * s,
             });
             break;
         }

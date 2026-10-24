@@ -57,6 +57,13 @@ void Camera::set_pixels_per_unit(float pixels) {
     update_proj_();
 }
 
+void Camera::set_display_scale(float scale) {
+    assert(scale > 0.0f && "Camera: display_scale must be > 0");
+    if (scale == display_scale_) return; // the renderer calls this every frame
+    display_scale_ = scale;
+    update_proj_();
+}
+
 // -----------------------------------------------------------------------------
 // Getters
 //

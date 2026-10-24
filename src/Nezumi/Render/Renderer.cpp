@@ -74,14 +74,16 @@ void Renderer::begin_frame() {
     stream_.reset();
     in_frame_ = true;
 
-    // Size each view's camera to the backbuffer here as well as in
+    // Size and scale each view's camera to the backbuffer here as well as in
     // end_frame, so draw code sees the real screen size on the first frame
     // (cameras start at CameraConfig::size) and the frame after a resize.
     const RHI::Extent2D size = device_.backbuffer_extent();
     if (size.width > 0 && size.height > 0) {
         for (ViewID vid = 0; vid < VIEW_CAPACITY; vid++) {
-            if (Camera* camera = cameras_.get(views_[vid]))
+            if (Camera* camera = cameras_.get(views_[vid])) {
                 camera->set_size({ float(size.width), float(size.height) });
+                camera->set_display_scale(display_scale_);
+            }
         }
     }
 }
@@ -115,6 +117,7 @@ void Renderer::end_frame() {
     for (ViewID vid = 0; vid < VIEW_CAPACITY; vid++) {
         if (Camera* camera = cameras_.get(views_[vid])) {
             camera->set_size({ float(size.width), float(size.height) });
+            camera->set_display_scale(display_scale_);
             frame_.update(vid, camera->get_vp());
         }
     }

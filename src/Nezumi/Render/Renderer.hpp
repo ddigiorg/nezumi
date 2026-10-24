@@ -188,14 +188,22 @@ public:
     // Views
     //
     // Which camera each view draws through. Each frame, every view's camera is
-    // sized to the device's backbuffer and the camera matrix is uploaded to
-    // that view's slot.
+    // sized to the device's backbuffer, given the display scale, and the
+    // camera matrix is uploaded to that view's slot.
     //
     // Default views (made by the constructor, unless replaced):
     //
     // - View::World:  "world-camera"  (Centered, RendererConfig::world_pixels_per_unit)
-    // - View::Screen: "screen-camera" (BottomLeft, 1 unit = 1 pixel)
+    // - View::Screen: "screen-camera" (BottomLeft, 1 unit = 1 point, which is
+    //                                  display_scale pixels)
+    //
+    // The display scale is the screen's HiDPI factor (Window::get_display_scale,
+    // set by the Engine before each frame), so content keeps its physical size
+    // while rendering at the screen's full resolution.
     // -------------------------------------------------------------------------
+
+    void  set_display_scale(float scale) { display_scale_ = scale > 0.0f ? scale : 1.0f; }
+    float get_display_scale() const      { return display_scale_; }
 
     void           clear_view(ViewID view);
     void           set_view  (ViewID view, Handle<Camera> camera);
@@ -313,7 +321,8 @@ private:
 
     // Miscellaneous
     FrameStats stats_;
-    bool in_frame_ = false;
+    bool  in_frame_      = false;
+    float display_scale_ = 1.0f;
 };
 
 } // namespace Nezumi::Render

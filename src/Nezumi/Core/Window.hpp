@@ -36,8 +36,26 @@ public:
     void resize(int w, int h);
 
     bool is_ready()   const { return window_ != nullptr; }
-    int  get_width()  const { return width_;             }
-    int  get_height() const { return height_;            }
+    int  get_width()  const { return width_;             } // points
+    int  get_height() const { return height_;            } // points
+
+    // -------------------------------------------------------------------------
+    // HiDPI
+    //
+    // The window's size is in points; what it renders is in pixels. On a
+    // HiDPI screen the two differ:
+    //
+    //   pixel density  pixels per point (2.0 on a 2x Mac, 1.5 on Wayland
+    //                  at 150%, 1.0 on Windows, where points are pixels)
+    //   display scale  how much bigger than 1x content should be drawn to
+    //                  keep its physical size (1.5 at 150% on any OS)
+    //
+    // Mouse events arrive already converted to pixels (see EventPump), and
+    // the renderer and UI scale by the display scale (see Engine).
+    // -------------------------------------------------------------------------
+
+    float get_pixel_density() const;
+    float get_display_scale() const;
 
     SDL_Window* get_sdl_window() const { return window_; }
 
@@ -76,6 +94,8 @@ private:
 
     int width_  = 0;
     int height_ = 0;
+
+    bool high_pixel_density_ = false;
 
     static constexpr std::size_t CURSOR_COUNT = static_cast<std::size_t>(CursorStyle::Count);
     std::array<SDL_Cursor*, CURSOR_COUNT> cursors_ = {};

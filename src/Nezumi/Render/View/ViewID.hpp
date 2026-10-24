@@ -26,7 +26,7 @@ inline constexpr std::uint32_t VIEW_CAPACITY = 16;
 // Views the renderer creates a camera for at construction.
 struct View {
     static constexpr ViewID World  = 0; // CameraOrigin::Centered, world units
-    static constexpr ViewID Screen = 1; // CameraOrigin::BottomLeft, 1 unit = 1 pixel
+    static constexpr ViewID Screen = 1; // CameraOrigin::BottomLeft, 1 unit = 1 point (display_scale pixels)
 };
 
 } // namespace Nezumi::Render

@@ -93,7 +93,7 @@ void main() {
     else if (shape == SHAPE_GLYPH) {
         // SDF value units; > 0 inside (see text-glyph-sdf.frag)
         float d = sdf - 0.5 + v_params.w;
-        float w = max(fwidth(d), 1e-5);
+        float w = max(length(vec2(dFdx(d), dFdy(d))), 1e-5); // not fwidth: see text-glyph-sdf.frag
         float a = clamp(d / w + 0.5, 0.0, 1.0) * v_color.a;
         pm = vec4(v_color.rgb * a, a);
     }

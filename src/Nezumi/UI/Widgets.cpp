@@ -28,7 +28,7 @@ void Context::text(std::string_view text, const glm::vec4& color) {
 
     // Lines are as tall as a button, so text lines up with widgets beside it
     const Rect r = place_({ text_width_(text), frame_height_() });
-    draw_text_({ r.min.x, r.min.y + std::round((r.height() - text_height_) * 0.5f) },
+    draw_text_({ r.min.x, r.min.y + snap_((r.height() - text_height_) * 0.5f) },
                text, color);
 }
 
@@ -48,11 +48,11 @@ bool Context::button(std::string_view label, float width) {
 
     // A fill button is at least as wide as its label, and that much counts
     // toward an AutoSize panel's width
-    const float fit = std::round(text_width_(visible) + 2.0f * style_.frame_padding.x);
+    const float fit = snap_(text_width_(visible) + 2.0f * style_.frame_padding.x);
     const float w   = width > 0.0f ? width
                     : width < 0.0f ? std::max(fit, avail_width_())
                     : fit;
-    const Rect r = place_({ std::round(w), frame_height_() }, width < 0.0f);
+    const Rect r = place_({ snap_(w), frame_height_() }, width < 0.0f);
     if (width < 0.0f) layout_.max_x = std::max(layout_.max_x, r.min.x + fit);
 
     bool hovered = false, held = false;
@@ -76,9 +76,9 @@ bool Context::checkbox(std::string_view label, bool& value) {
     const std::string_view visible = visible_(label);
 
     const float h = frame_height_();
-    const float s = std::round(h - 2.0f * style_.frame_padding.y + 2.0f); // box side
+    const float s = snap_(h - 2.0f * style_.frame_padding.y + 2.0f); // box side
     const Rect  r = place_({ s + label_width_(visible), h });
-    const Rect  box = Rect::from_size({ r.min.x, r.min.y + std::round((h - s) * 0.5f) }, glm::vec2(s));
+    const Rect  box = Rect::from_size({ r.min.x, r.min.y + snap_((h - s) * 0.5f) }, glm::vec2(s));
 
     // The label is part of the target, as in any desktop toolkit
     bool hovered = false, held = false;
@@ -88,7 +88,7 @@ bool Context::checkbox(std::string_view label, bool& value) {
     const glm::vec4& bg = held ? style_.frame_bg_active : hovered ? style_.frame_bg_hovered : style_.frame_bg;
     draw_box_(box, bg, style_.frame_rounding, style_.frame_border, style_.border_width);
     if (value) {
-        draw_shape_(box.shrink(glm::vec2(std::round(s * 0.18f))), UIQuadShape::Check,
+        draw_shape_(box.shrink(glm::vec2(snap_(s * 0.18f))), UIQuadShape::Check,
                     style_.accent, std::max(2.0f, s * 0.14f));
     }
     draw_label_(r, box.max.x, visible);
@@ -107,10 +107,10 @@ bool Context::toggle(std::string_view label, bool& value) {
     const std::string_view visible = visible_(label);
 
     const float h  = frame_height_();
-    const float th = std::round(h - 2.0f * style_.frame_padding.y + 2.0f); // track height
+    const float th = snap_(h - 2.0f * style_.frame_padding.y + 2.0f); // track height
     const float tw = 2.0f * th;
     const Rect  r  = place_({ tw + label_width_(visible), h });
-    const Rect  track = Rect::from_size({ r.min.x, r.min.y + std::round((h - th) * 0.5f) }, { tw, th });
+    const Rect  track = Rect::from_size({ r.min.x, r.min.y + snap_((h - th) * 0.5f) }, { tw, th });
 
     bool hovered = false;
     const bool clicked = behavior_(id, r, &hovered);
@@ -168,7 +168,7 @@ bool Context::slider_(std::string_view label, float& value, float min, float max
     behavior_(id, track, &hovered, &held);
 
     // While held (including the press itself), the grab follows the cursor
-    const float grab_w = std::max(10.0f, std::round(frame_height_() * 0.5f));
+    const float grab_w = std::max(10.0f, snap_(frame_height_() * 0.5f));
     const float range  = max - min;
     bool changed = false;
     if (active_id_ == id || held) {
@@ -186,7 +186,7 @@ bool Context::slider_(std::string_view label, float& value, float min, float max
     draw_box_(track, bg, style_.frame_rounding, style_.frame_border, style_.border_width);
 
     const Rect grab = Rect::from_size(
-        { track.min.x + std::round(t * (w - grab_w)), track.min.y + 2.0f },
+        { track.min.x + snap_(t * (w - grab_w)), track.min.y + 2.0f },
         { grab_w, track.height() - 4.0f });
     draw_box_(grab, (held || hovered) ? style_.accent : style_.accent_dim, style_.frame_rounding);
 
@@ -294,10 +294,10 @@ bool Context::text_field(std::string_view label, std::string& value, std::size_t
 
     const Rect saved = clip_;
     clip_ = clip_.intersect(inner);
-    const float y = box.min.y + std::round((box.height() - text_height_) * 0.5f);
+    const float y = box.min.y + snap_((box.height() - text_height_) * 0.5f);
     draw_text_({ inner.min.x - offset, y }, value, style_.text);
     if (focus_id_ == id) {
-        draw_box_(Rect::from_size({ std::round(inner.min.x - offset + caret_x), y },
+        draw_box_(Rect::from_size({ snap_(inner.min.x - offset + caret_x), y },
                                   { 1.5f, text_height_ }), style_.text);
     }
     clip_ = saved;
@@ -335,13 +335,13 @@ bool Context::dropdown(std::string_view label, int& selected,
                         :                  style_.frame_bg;
     draw_box_(box, bg, style_.frame_rounding, style_.frame_border, style_.border_width);
 
-    const float arrow = std::round(h * 0.3f);
+    const float arrow = snap_(h * 0.3f);
     const Rect  text_box = { box.min, { box.max.x - arrow - 2.0f * style_.frame_padding.x, box.max.y } };
     if (selected >= 0 && static_cast<std::size_t>(selected) < items.size())
         draw_text_in_(text_box, items[static_cast<std::size_t>(selected)], style_.text, style_.frame_padding.x);
     draw_shape_(Rect::from_size({ box.max.x - style_.frame_padding.x - arrow,
-                                  box.min.y + std::round((h - arrow * 0.6f) * 0.5f) },
-                                { arrow, std::round(arrow * 0.6f) }),
+                                  box.min.y + snap_((h - arrow * 0.6f) * 0.5f) },
+                                { arrow, snap_(arrow * 0.6f) }),
                 UIQuadShape::TriangleDown, style_.text_dim);
 
     draw_label_(r, box.max.x, visible);

@@ -1,7 +1,9 @@
 // =============================================================================
 // OnMouseMotion.hpp
 //
-// Called when the mouse moved.
+// Called when the mouse moved. Positions are window pixels, (0, 0) at the
+// top-left, y down: the units of Camera::screen_to_world, even on HiDPI
+// screens where SDL's window points differ from pixels.
 // =============================================================================
 
 #pragma once

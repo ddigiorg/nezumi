@@ -226,6 +226,8 @@ void Engine::run_tick_(IApplication& app) {
 void Engine::run_draw_(IApplication& app) {
     statswatch_->start();
 
+    // HiDPI: draw at the screen's full resolution, scaled to keep sizes
+    if (window_) renderer_->set_display_scale(window_->get_display_scale());
     renderer_->begin_frame();
     if (ui_) ui_->begin_frame();
     app.on_draw(*this);

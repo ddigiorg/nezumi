@@ -5,8 +5,8 @@
 //
 // The font atlas stores FreeType's distance field: 0.5 at the glyph's edge,
 // higher inside. Coverage comes from the distance divided by how much it
-// changes across one screen pixel (fwidth), so edges stay one pixel soft at any
-// zoom, unlike a fixed smoothstep width.
+// changes across one screen pixel (its screen-space gradient), so edges stay
+// one pixel soft at any zoom, unlike a fixed smoothstep width.
 // =============================================================================
 
 #version 330 core
@@ -23,9 +23,15 @@ in vec4 v_params; // outline width, weight, outline offset (uv)
 
 layout(location = 0) out vec4 o_color;
 
+// d's change per screen pixel along its gradient. fwidth (|dx| + |dy|)
+// overestimates it by up to sqrt(2) on diagonal and curved edges, which
+// blurs them over ~1.4 pixels instead of 1.
+float pixel_width(float d) {
+    return max(length(vec2(dFdx(d), dFdy(d))), 1e-5);
+}
+
 float coverage(float d) {
-    float w = max(fwidth(d), 1e-5);
-    return clamp(d / w + 0.5, 0.0, 1.0);
+    return clamp(d / pixel_width(d) + 0.5, 0.0, 1.0);
 }
 
 void main() {

@@ -5,10 +5,14 @@
 //
 // World units to screen pixels: one world unit spans get_scale() pixels, where
 //
-//   scale = pixels_per_unit * zoom
+//   scale = pixels_per_unit * zoom * display_scale
 //
 // pixels_per_unit is the camera's fixed convention for the world it looks at
 // (e.g. 32 px per tile); zoom is the player-facing factor on top of it.
+// display_scale is the screen's HiDPI factor (1.5 at 150%), set by the
+// renderer each frame, so the world keeps its physical size on any screen
+// while rendering at full resolution. pixels_per_unit is therefore in
+// points (1x pixels); get_scale() is in real pixels.
 //
 // Note: Projections use glm's zero-to-one ("ZO") variants because the RHI's
 // clip-space depth range is 0..1 on every backend.
@@ -48,6 +52,7 @@ public:
     void set_size           (glm::vec2 size    );
     void set_zoom           (float     factor  );
     void set_pixels_per_unit(float     pixels  );
+    void set_display_scale  (float     scale   );
 
     // -------------------------------------------------------------------------
     // Getters
@@ -55,7 +60,8 @@ public:
 
     float     get_zoom()            const { return zoom_;                    }
     float     get_pixels_per_unit() const { return pixels_per_unit_;         }
-    float     get_scale()           const { return pixels_per_unit_ * zoom_; } // screen px per world unit
+    float     get_display_scale()   const { return display_scale_;           }
+    float     get_scale()           const { return pixels_per_unit_ * zoom_ * display_scale_; } // screen px per world unit
     glm::vec2 get_position()        const { return position_;                }
     glm::vec2 get_size()            const { return size_;                    }
     glm::mat4 get_view()            const { return view_;                    }
@@ -88,6 +94,7 @@ private:
     CameraOrigin origin_          = CameraOrigin::Centered;
     float        zoom_            = 1.0f;
     float        pixels_per_unit_ = 1.0f;
+    float        display_scale_   = 1.0f;
     glm::vec2    position_        = {   0.0f,   0.0f };
     glm::vec2    size_            = { 800.0f, 600.0f };
     glm::mat4    view_            = glm::mat4(1.0f);

@@ -103,7 +103,8 @@ public:
 
     void on_tick(Engine& engine) override {
         if (engine.input().was_pressed(Action::PlaceMarker))
-            markers_.push_back(world_camera_->screen_to_world(engine.ui()->mouse()));
+            markers_.push_back(world_camera_->screen_to_world(engine.ui()->mouse() *
+                                                                engine.ui()->scale()));
 
         if (engine.input().was_pressed(Action::ShowPanels)) {
             show_widgets_  = true;

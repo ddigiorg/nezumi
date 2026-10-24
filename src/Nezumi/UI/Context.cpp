@@ -77,14 +77,14 @@ void Context::begin_frame() {
     in_frame_ = true;
     frame_++;
 
-    // Screen size from the view's camera (sized to the backbuffer by the
-    // renderer), and how window points map to it (they differ on HiDPI)
-    if (const Render::Camera* camera = renderer_.get_view_camera(config_.view))
-        screen_size_ = camera->get_size();
-    if (window_ && window_->get_width() > 0 && window_->get_height() > 0) {
-        mouse_scale_ = screen_size_ / glm::vec2(float(window_->get_width()),
-                                                float(window_->get_height()));
+    // Screen size and scale from the view's camera (sized to the backbuffer
+    // and given the display scale by the renderer). Mouse events are window
+    // pixels; the UI works in the view's units (points on HiDPI screens).
+    if (const Render::Camera* camera = renderer_.get_view_camera(config_.view)) {
+        scale_       = camera->get_scale();
+        screen_size_ = camera->get_size() / scale_;
     }
+    mouse_ = mouse_pixels_ / scale_;
 
     if (font_) {
         text_scale_  = style_.font_size / font_->pixel_size();
@@ -228,7 +228,7 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     // AutoSize panels grow to fit, so they never clip or scroll.
     const float title_h = title_height_(p);
     const Rect  inner   = Rect{ { p.pos.x, p.pos.y + title_h }, p.pos + p.size }
-                              .shrink(glm::vec2(style_.border_width));
+                              .shrink(glm::vec2(thickness_(style_.border_width)));
     const Rect  content = Rect{ { p.pos.x, p.pos.y + title_h }, p.pos + p.size }
                               .shrink(style_.panel_padding);
     const bool  auto_size = p.has(PanelFlags::AutoSize);
@@ -330,8 +330,8 @@ void Context::spacing(float height) {
 void Context::separator() {
     if (!layout_.panel) return;
     const Rect r = place_({ avail_width_(), style_.item_spacing.y }, true);
-    const float y = std::floor(r.center().y);
-    draw_box_({ { r.min.x, y }, { r.max.x, y + 1.0f } }, style_.separator);
+    const float y = snap_floor_(r.center().y);
+    draw_box_({ { r.min.x, y }, { r.max.x, y + thickness_(1.0f) } }, style_.separator);
 }
 
 // -----------------------------------------------------------------------------
@@ -467,16 +467,21 @@ void Context::clamp_to_screen_(Panel& panel) const {
     // at the top-left, where its title bar stays reachable.
     panel.pos = glm::clamp(panel.pos, glm::vec2(0.0f),
                            glm::max(screen_size_ - panel.size, glm::vec2(0.0f)));
+
+    // On whole pixels, so everything inside is too (a pivot, AutoSize text
+    // widths and the display scale all make fractions)
+    panel.pos  = snap_(panel.pos);
+    panel.size = snap_(panel.size);
 }
 
 float Context::title_height_(const Panel& panel) const {
     if (panel.has(PanelFlags::NoTitleBar)) return 0.0f;
-    return std::round(text_height_ + 2.0f * style_.title_padding);
+    return snap_(text_height_ + 2.0f * style_.title_padding);
 }
 
 Rect Context::close_rect_(const Panel& panel) const {
     const float h = title_height_(panel);
-    const float s = std::round(h * 0.7f);
+    const float s = snap_(h * 0.7f);
     const glm::vec2 min = { panel.pos.x + panel.size.x - (h + s) * 0.5f,
                             panel.pos.y + (h - s) * 0.5f };
     return Rect::from_size(min, glm::vec2(s));
@@ -488,14 +493,15 @@ void Context::draw_chrome_(Panel& p) {
 
     const Rect  r       = p.rect();
     const float title_h = title_height_(p);
-    const float bw      = style_.border_width;
+    const float bw      = thickness_(style_.border_width);
     const float radius  = style_.panel_rounding;
 
     // Hard drop shadow, two steps
-    draw_box_(Rect{ r.min + glm::vec2(0.0f, 2.0f), r.max + glm::vec2(2.0f, 4.0f) },
-              { 0.0f, 0.0f, 0.0f, 0.18f }, radius + 2.0f);
-    draw_box_(Rect{ r.min + glm::vec2(0.0f, 1.0f), r.max + glm::vec2(1.0f, 2.0f) },
-              { 0.0f, 0.0f, 0.0f, 0.25f }, radius + 1.0f);
+    const float s1 = thickness_(1.0f), s2 = thickness_(2.0f);
+    draw_box_(Rect{ r.min + glm::vec2(0.0f, s2), r.max + glm::vec2(s2, 2.0f * s2) },
+              { 0.0f, 0.0f, 0.0f, 0.18f }, radius + s2);
+    draw_box_(Rect{ r.min + glm::vec2(0.0f, s1), r.max + glm::vec2(s1, 2.0f * s1) },
+              { 0.0f, 0.0f, 0.0f, 0.25f }, radius + s1);
 
     // Background and border
     draw_box_(r, style_.panel_bg, radius, style_.panel_border, bw);
@@ -516,7 +522,7 @@ void Context::draw_chrome_(Panel& p) {
         if (p.closable) {
             const Rect cr = close_rect_(p);
             if (p.close_hot) draw_box_(cr, style_.close_hovered, style_.frame_rounding);
-            draw_shape_(cr.shrink(glm::vec2(std::round(cr.width() * 0.28f))),
+            draw_shape_(cr.shrink(glm::vec2(snap_(cr.width() * 0.28f))),
                         UIQuadShape::Cross, style_.text, 2.0f);
         }
     }
@@ -528,8 +534,8 @@ void Context::draw_chrome_(Panel& p) {
         const float thumb_h   = std::max(16.0f, view_h * view_h / p.content.y);
         const float max_off   = p.content.y - view_h;
         const float thumb_y   = track_top + (view_h - thumb_h) * (p.scroll / max_off);
-        const float x         = r.max.x - bw - 2.0f - style_.scrollbar_width;
-        draw_box_(Rect::from_size({ x, thumb_y }, { style_.scrollbar_width, thumb_h }),
+        const float x         = r.max.x - bw - thickness_(2.0f) - snap_(style_.scrollbar_width);
+        draw_box_(Rect::from_size({ x, snap_(thumb_y) }, { snap_(style_.scrollbar_width), snap_(thumb_h) }),
                   style_.scrollbar, style_.scrollbar_width * 0.5f);
     }
 
@@ -565,17 +571,17 @@ Rect Context::place_(glm::vec2 size, bool fill) {
     if (!fill) L.max_x = std::max(L.max_x, pos.x + size.x);
     L.max_y = std::max(L.max_y, pos.y + L.line_h);
 
-    return Rect::from_size(pos, size);
+    return Rect::from_size(snap_(pos), size);
 }
 
 float Context::frame_height_() const {
-    return std::round(text_height_ + 2.0f * style_.frame_padding.y);
+    return snap_(text_height_ + 2.0f * style_.frame_padding.y);
 }
 
 float Context::control_width_() const {
     const Panel* p = layout_.panel;
     if (!p || p->has(PanelFlags::AutoSize)) return style_.control_width;
-    return std::max(60.0f, std::round(layout_.content.width() * style_.control_fraction));
+    return std::max(60.0f, snap_(layout_.content.width() * style_.control_fraction));
 }
 
 float Context::avail_width_() const {
@@ -598,7 +604,7 @@ float Context::label_width_(std::string_view visible) const {
 
 void Context::draw_label_(const Rect& row, float x, std::string_view visible) {
     if (visible.empty()) return;
-    draw_text_({ x + style_.item_spacing.x, row.min.y + (row.height() - text_height_) * 0.5f },
+    draw_text_({ x + style_.item_spacing.x, row.min.y + snap_((row.height() - text_height_) * 0.5f) },
                visible, style_.text);
 }
 
@@ -648,7 +654,7 @@ void Context::draw_box_(const Rect& r, const glm::vec4& color, float radius,
         .color        = color,
         .border_color = border,
         .clip_box     = box4(clip_),
-        .params       = { radius, border_width, float(UIQuadShape::Box), 0.0f },
+        .params       = { radius, thickness_(border_width), float(UIQuadShape::Box), 0.0f },
     });
 }
 
@@ -671,11 +677,17 @@ float Context::draw_text_(glm::vec2 pos, std::string_view text, const glm::vec4&
 
     const Render::TextStyle style = {
         .size   = style_.font_size,
-        .valign = Render::TextVAlign::Top,
+        .valign = Render::TextVAlign::Baseline,
     };
 
+    // The baseline on a whole pixel, so the bottoms of letters (and, at a
+    // given size, their x-height and cap height) land the same way on every
+    // line instead of straddling two pixels
+    const float baseline = snap_(pos.y + font_->ascender() * text_scale_);
+    const float x        = snap_(pos.x);
+
     // layout_text works y up: lay out at -y, then negate back to y down
-    const glm::vec4 bounds = Render::layout_text(*font_, text, { pos.x, -pos.y }, style,
+    const glm::vec4 bounds = Render::layout_text(*font_, text, { x, -baseline }, style,
         [&](const Render::FontGlyph& glyph, const glm::vec4& box) {
             const Rect r = { { box.x, -box.w }, { box.z, -box.y } };
             const Rect visible = r.intersect(clip_);
@@ -706,8 +718,8 @@ float Context::text_width_(std::string_view text) const {
 void Context::draw_text_in_(const Rect& r, std::string_view text, const glm::vec4& color,
                             float pad, bool center)
 {
-    const float y = r.min.y + std::round((r.height() - text_height_) * 0.5f);
-    const float x = center ? std::round(r.center().x - text_width_(text) * 0.5f)
+    const float y = r.min.y + snap_((r.height() - text_height_) * 0.5f);
+    const float x = center ? snap_(r.center().x - text_width_(text) * 0.5f)
                            : r.min.x + pad;
 
     const Rect saved = clip_;
@@ -741,7 +753,7 @@ void Context::subscribe_() {
 
     listeners_[0] = events_.subscribe<OnMouseMotion>(
         [this](const OnMouseMotion& e) {
-            mouse_ = glm::vec2(e.pos_x, e.pos_y) * mouse_scale_;
+            mouse_pixels_ = glm::vec2(e.pos_x, e.pos_y);
         }
     );
 

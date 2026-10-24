@@ -52,6 +52,23 @@ void Window::resize(int w, int h) {
 }
 
 // -----------------------------------------------------------------------------
+// HiDPI
+// -----------------------------------------------------------------------------
+
+float Window::get_pixel_density() const {
+    const float d = window_ ? SDL_GetWindowPixelDensity(window_) : 0.0f;
+    return d > 0.0f ? d : 1.0f;
+}
+
+float Window::get_display_scale() const {
+    // Without SDL_WINDOW_HIGH_PIXEL_DENSITY the desktop already stretches
+    // the window by this much, so scaling content too would apply it twice
+    if (!high_pixel_density_ || !window_) return 1.0f;
+    const float s = SDL_GetWindowDisplayScale(window_);
+    return s > 0.0f ? s : 1.0f;
+}
+
+// -----------------------------------------------------------------------------
 // Cursor
 // -----------------------------------------------------------------------------
 
@@ -115,6 +132,7 @@ void Window::init_sdl_(
     // window exists (e.g. OpenGL context attributes), and return the window
     // flags they require.
     SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE;
+    if (config.high_pixel_density) flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
     if (prepare) flags |= static_cast<SDL_WindowFlags>(prepare());
 
     window_ = SDL_CreateWindow(
@@ -143,6 +161,7 @@ void Window::init_sdl_(
 
     width_  = config.width;
     height_ = config.height;
+    high_pixel_density_ = config.high_pixel_density;
 }
 
 void Window::init_events_() {

@@ -77,7 +77,9 @@
 #include "Nezumi/UI/Rect.hpp"
 #include "Nezumi/UI/Style.hpp"
 #include "Nezumi/UI/UIConfig.hpp"
+#include <algorithm>   // max
 #include <array>       // array
+#include <cmath>       // floor, round
 #include <cstddef>     // size_t
 #include <cstdint>     // uint32_t, uint64_t
 #include <glm/glm.hpp> // vec2, vec4
@@ -232,8 +234,13 @@ public:
     Style&            style      ()       { return style_; }
     const Style&      style      () const { return style_; }
     Render::Font*     font       () const { return font_;  }
-    glm::vec2         screen_size() const { return screen_size_; }
-    glm::vec2         mouse      () const { return mouse_; }      // UI pixels, y down
+    glm::vec2         screen_size() const { return screen_size_; } // UI units (points)
+    glm::vec2         mouse      () const { return mouse_; }       // UI units, y down
+
+    // Screen pixels per UI unit: the display scale (1.5 at 150%). UI units
+    // are points, so mouse() * scale() is the cursor in window pixels, as
+    // Camera::screen_to_world takes it.
+    float             scale      () const { return scale_; }
 
     // Panel bounds as last drawn, or an empty rect if it hasn't been
     Rect get_panel_rect(std::string_view title) const;
@@ -337,6 +344,22 @@ private:
                    bool integer, const char* format);
 
     // -------------------------------------------------------------------------
+    // Helpers: pixel snapping
+    //
+    // UI units are points, scale_ pixels each. Positions and sizes snap to
+    // whole screen pixels (k / scale_), so edges and text land on pixel
+    // boundaries at any display scale, not just at 1x and 2x.
+    // -------------------------------------------------------------------------
+
+    float     snap_      (float v)     const { return std::round(v * scale_) / scale_; }
+    glm::vec2 snap_      (glm::vec2 v) const { return glm::round(v * scale_) / scale_; }
+    float     snap_floor_(float v)     const { return std::floor(v * scale_) / scale_; }
+    // A line or border width: whole pixels, at least one (0 stays 0)
+    float     thickness_ (float w)     const {
+        return w > 0.0f ? std::max(1.0f, std::round(w * scale_)) / scale_ : 0.0f;
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers: drawing, into list_ and clipped to clip_ (Context.cpp)
     // -------------------------------------------------------------------------
 
@@ -408,8 +431,8 @@ private:
     bool on_popup_    = false; // cursor over the open dropdown this frame
 
     // Input gathered from events since the last frame
-    glm::vec2         mouse_          = { -1.0f, -1.0f };
-    glm::vec2         mouse_scale_    = { 1.0f, 1.0f }; // window points -> pixels
+    glm::vec2         mouse_          = { -1.0f, -1.0f }; // UI units
+    glm::vec2         mouse_pixels_   = { -1.0f, -1.0f }; // window pixels, from events
     bool              mouse_down_     = false;
     bool              mouse_pressed_  = false;
     bool              mouse_released_ = false;
@@ -421,6 +444,7 @@ private:
     CursorStyle game_cursor_ = CursorStyle::Arrow;
 
     glm::vec2     screen_size_ = { 0.0f, 0.0f };
+    float         scale_       = 1.0f; // screen pixels per UI unit
     std::uint64_t frame_       = 0;
     bool          in_frame_    = false;
 
