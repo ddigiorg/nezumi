@@ -2,7 +2,7 @@
 // Events/OnEntityMined.hpp
 //
 // Published when a mine command takes from a resource. `amount` is what was
-// actually taken, so it is what the miner should be credited with. When
+// actually taken, so the miner should be credited with `amount` of `item`. When
 // `remaining` is 0 the resource ran out and is removed at the next command
 // phase (OnEntityRemoved follows).
 //
@@ -16,6 +16,7 @@
 #include "Nezumi/Core/Tick.hpp"
 #include "Nezumi/Event/IEvent.hpp"
 #include "Nezumi/World/Entity/EntityID.hpp"
+#include "Nezumi/World/Item/ItemID.hpp"
 #include <cstdint> // uint16_t
 
 namespace Nezumi {
@@ -25,6 +26,7 @@ struct OnEntityMined : IEvent {
     EntityHandle    source     = {}; // may be null or stale
     EntityTypeID    type_id    = {}; // target's type and subtype: what was
     EntitySubtypeID subtype_id = {}; // mined, without a lookup
+    ItemID          item       = {}; // what mining yields (may be null)
     uint16_t        amount     = 0;  // amount actually taken
     uint16_t        remaining  = 0;  // target amount after mining
     Tick            tick       = 0;

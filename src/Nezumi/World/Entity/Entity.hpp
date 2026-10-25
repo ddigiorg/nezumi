@@ -191,8 +191,8 @@ public:
     Area2D             collision_bounds = {};      // 16 B  local, relative to position
     SectorSpan         sector_span      = {};      // 16 B  owned by Surface
 
-    // 32 B free: derived types start here (EntityDamageable and
-    // EntityResource each add 4 B)
+    // 32 B free: derived types start here (EntityDamageable adds 4 B,
+    // EntityResource 6 B)
 };
 
 static_assert(sizeof(Entity) <= 128, "Entity should fit in 2 cache lines");

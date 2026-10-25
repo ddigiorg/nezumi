@@ -268,6 +268,7 @@ void World::apply_mining_() {
             event.source     = cmd.source;
             event.type_id    = target->type_id;
             event.subtype_id = target->subtype_id;
+            event.item       = target->item;
             event.amount     = taken;
             event.remaining  = target->amount;
             event.tick       = tick_;

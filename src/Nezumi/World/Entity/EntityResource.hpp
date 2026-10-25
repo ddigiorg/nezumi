@@ -21,11 +21,15 @@
 //   if (entity->is_resource())
 //       static_cast<EntityResource*>(entity)->take(amount);
 //
-// What the resource yields (wood, stone, ...) is up to the derived type.
+// `item` is what mining yields (wood, gold, ...): one item per unit of
+// amount. World reports it in OnEntityMined, so whoever credits the miner
+// needs no lookup. See Entities/Resource for the engine's ready-made
+// resource.
 // =============================================================================
 
 #pragma once
 #include "Nezumi/World/Entity/Entity.hpp"
+#include "Nezumi/World/Item/ItemID.hpp"
 #include <algorithm> // min
 #include <cstdint>   // uint16_t
 
@@ -38,8 +42,8 @@ public:
     // Construction & Destruction
     // -------------------------------------------------------------------------
 
-    explicit EntityResource(uint16_t max_amount)
-        : amount(max_amount), max_amount(max_amount)
+    explicit EntityResource(uint16_t max_amount, ItemID item = {})
+        : amount(max_amount), max_amount(max_amount), item(item)
     {
         this->set_resource();
     }
@@ -79,11 +83,12 @@ public:
     // -------------------------------------------------------------------------
     // Members
     //
-    // Fits in the 32 B left in Entity's second cache line.
+    // 6 B of the 32 B left in Entity's second cache line.
     // -------------------------------------------------------------------------
 
     uint16_t amount     = 0u; // 2 B
     uint16_t max_amount = 0u; // 2 B
+    ItemID   item       = {}; // 2 B  what mining yields
 };
 
 } // namespace Nezumi
