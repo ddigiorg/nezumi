@@ -21,6 +21,11 @@ struct WorldConfig {
     // allocation on the EventBus, so turn this off for very large battles if
     // nothing listens.
     bool publish_damage_events = true;
+
+    // Publish OnEntityMined for every applied mine command. Without it
+    // nothing outside the sim learns what a miner took, so leave it on unless
+    // the game credits mining some other way.
+    bool publish_mine_events = true;
 };
 
 } // namespace Nezumi

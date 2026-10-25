@@ -5,6 +5,7 @@
 #pragma once
 #include "Nezumi/World/Command/DeferEntityApplyDamage.hpp"
 #include "Nezumi/World/Command/DeferEntityCreate.hpp"
+#include "Nezumi/World/Command/DeferEntityMine.hpp"
 #include "Nezumi/World/Command/DeferEntityRemove.hpp"
 #include "Nezumi/World/Command/DeferEntitySetActive.hpp"
 #include <utility> // exchange
@@ -35,6 +36,10 @@ public:
         entity_apply_damages_.push_back(cmd);
     }
 
+    void defer_entity_mine(const DeferEntityMine& cmd) {
+        entity_mines_.push_back(cmd);
+    }
+
     // -------------------------------------------------------------------------
     // Apply
     //
@@ -54,6 +59,9 @@ public:
 
     template <typename Fn>
     void apply_entity_apply_damages(Fn&& fn) { apply_(entity_apply_damages_, fn); }
+
+    template <typename Fn>
+    void apply_entity_mines(Fn&& fn) { apply_(entity_mines_, fn); }
 
 private:
 
@@ -77,6 +85,7 @@ private:
     std::vector<DeferEntityRemove>      entity_removes_       = {};
     std::vector<DeferEntitySetActive>   entity_set_actives_   = {};
     std::vector<DeferEntityApplyDamage> entity_apply_damages_ = {};
+    std::vector<DeferEntityMine>        entity_mines_         = {};
 };
 
 } // namespace Nezumi

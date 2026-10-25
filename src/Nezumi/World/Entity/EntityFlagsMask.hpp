@@ -35,9 +35,9 @@ enum class EntityFlagsMask : std::uint32_t {
     Flag20 = 1u << 20,
     Flag21 = 1u << 21,
     Flag22 = 1u << 22,
-    Flag23 = 1u << 23,
 
     // Reserved
+    Flag23 = 1u << 23, // Resource: entity derives from EntityResource
     Flag24 = 1u << 24, // Damageable: entity derives from EntityDamageable
     Flag25 = 1u << 25, // Active: entity in a chunk and ticks each tick
     Flag26 = 1u << 26, // Tickable: entity can activate/deactivate

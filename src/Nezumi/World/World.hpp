@@ -86,10 +86,19 @@ public:
 
     void set_entity_active(EntityHandle handle, bool active);
 
-    // Deal `amount` damage to `target` in the next damage phase (this tick's
-    // if called while ticking). Ignored if the target is gone or not
+    // Deal `amount` damage to `target` in the next interaction phase (this
+    // tick's if called while ticking). Ignored if the target is gone or not
     // damageable by then. A target whose health reaches 0 is removed.
     void damage_entity(
+        EntityHandle target,
+        uint16_t     amount,
+        EntityHandle source = {});
+
+    // Take up to `amount` from resource `target` in the next interaction
+    // phase (this tick's if called while ticking). Ignored if the target is
+    // gone or not a resource by then. OnEntityMined reports what was
+    // actually taken. A resource that runs out is removed.
+    void mine_entity(
         EntityHandle target,
         uint16_t     amount,
         EntityHandle source = {});
@@ -132,7 +141,7 @@ private:
     // 2. Activation   update chunk active/inactive state
     // 3. Entity tick  active chunks in ChunkID order; entities write only
     //                 themselves and issue commands
-    // 4. Damage       apply damage commands in issue order
+    // 4. Interaction  apply damage, then mine commands, each in issue order
     // 5. Movement     integrate velocity, then update chunk/sector membership
     // 6. Activation   update chunk active/inactive state again
     // 7. Sweep        drop empty sectors every `sector_sweep_interval` ticks
@@ -143,7 +152,9 @@ private:
     void apply_commands_     ();
     void update_activation_  ();
     void tick_entities_      (WorldContext& ctx);
+    void apply_interactions_ ();
     void apply_damage_       ();
+    void apply_mining_       ();
     void integrate_movement_ (float dt);
     void sweep_sectors_      ();
 

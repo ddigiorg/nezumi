@@ -7,8 +7,10 @@
 #include "Nezumi/Core/Clock.hpp"
 #include "Nezumi/World/Events/OnSurfaceCreated.hpp"
 #include "Nezumi/World/Entity/EntityDamageable.hpp"
+#include "Nezumi/World/Entity/EntityResource.hpp"
 #include "Nezumi/World/Events/OnEntityCreated.hpp"
 #include "Nezumi/World/Events/OnEntityDamaged.hpp"
+#include "Nezumi/World/Events/OnEntityMined.hpp"
 #include "Nezumi/World/Events/OnEntityRemoved.hpp"
 #include "Nezumi/EngineContext.hpp"
 #include <cstdint> // uint32_t
@@ -51,7 +53,7 @@ void World::tick() {
     apply_commands_   ();       // 1. Commands
     update_activation_();       // 2. Activation
     tick_entities_    (ctx);    // 3. Entity tick
-    apply_damage_     ();       // 4. Damage
+    apply_interactions_();      // 4. Interaction
     integrate_movement_(ctx.dt);// 5. Movement + spatial update
     update_activation_();       // 6. Activation
     sweep_sectors_    ();       // 7. Sector sweep
@@ -119,6 +121,11 @@ void World::set_entity_active(EntityHandle handle, bool active) {
 void World::damage_entity(EntityHandle target, uint16_t amount, EntityHandle source) {
     if (amount == 0) return;
     commands_.defer_entity_apply_damage({ target, source, amount });
+}
+
+void World::mine_entity(EntityHandle target, uint16_t amount, EntityHandle source) {
+    if (amount == 0) return;
+    commands_.defer_entity_mine({ target, source, amount });
 }
 
 // -----------------------------------------------------------------------------
@@ -207,11 +214,18 @@ void World::tick_entities_(WorldContext& ctx) {
 }
 
 // -----------------------------------------------------------------------------
-// Tick Phase 4: Damage
+// Tick Phase 4: Interaction
+//
+// Damage and mining issued during the entity tick, each applied in issue
+// order. Commands issued outside a tick (e.g. from the app) wait here for the
+// next tick. Damage goes first, so an entity killed this tick is never also
+// mined (and the order stays fixed if an entity is ever both).
 // -----------------------------------------------------------------------------
 
-// Damage issued during the entity tick, applied in issue order. Damage issued
-// outside a tick (e.g. from the app) waits here for the next tick.
+void World::apply_interactions_() {
+    apply_damage_();
+    apply_mining_();
+}
 
 void World::apply_damage_() {
     commands_.apply_entity_apply_damages([&](const DeferEntityApplyDamage& cmd) {
@@ -235,6 +249,33 @@ void World::apply_damage_() {
 
         // Flagged now (queries and ticks skip it), removed next command phase
         if (target->is_dead()) remove_entity(cmd.target);
+    });
+}
+
+void World::apply_mining_() {
+    commands_.apply_entity_mines([&](const DeferEntityMine& cmd) {
+        Entity* entity = entities_.get(cmd.target);
+        if (!entity || !entity->is_alive() || !entity->is_resource()) return;
+
+        auto* target = static_cast<EntityResource*>(entity);
+        if (target->is_depleted()) return;
+
+        const uint16_t taken = target->take(cmd.amount);
+
+        if (config_.publish_mine_events) {
+            OnEntityMined event;
+            event.target     = cmd.target;
+            event.source     = cmd.source;
+            event.type_id    = target->type_id;
+            event.subtype_id = target->subtype_id;
+            event.amount     = taken;
+            event.remaining  = target->amount;
+            event.tick       = tick_;
+            publish_(event);
+        }
+
+        // Flagged now (queries skip it), removed next command phase
+        if (target->is_depleted()) remove_entity(cmd.target);
     });
 }
 

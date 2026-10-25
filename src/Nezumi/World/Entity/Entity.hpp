@@ -85,6 +85,7 @@ public:
     // Query flags
     bool has_flags(EntityFlagsMask mask) const { return has_all(flags_mask, mask); }
 
+    bool is_resource()       const { return has_all(flags_mask, EntityFlagsMask::Flag23); }
     bool is_damageable()     const { return has_all(flags_mask, EntityFlagsMask::Flag24); }
     bool is_active()         const { return has_all(flags_mask, EntityFlagsMask::Flag25); }
     bool is_tickable()       const { return has_all(flags_mask, EntityFlagsMask::Flag26); }
@@ -101,6 +102,7 @@ public:
         flags_mask |= mask;
     }
 
+    void set_resource()       { flags_mask |= EntityFlagsMask::Flag23; }
     void set_damageable()     { flags_mask |= EntityFlagsMask::Flag24; }
     void set_active()         { flags_mask |= EntityFlagsMask::Flag25; }
     void set_tickable()       { flags_mask |= EntityFlagsMask::Flag26; }
@@ -189,7 +191,8 @@ public:
     Area2D             collision_bounds = {};      // 16 B  local, relative to position
     SectorSpan         sector_span      = {};      // 16 B  owned by Surface
 
-    // 32 B free: derived types start here (EntityDamageable adds 4 B)
+    // 32 B free: derived types start here (EntityDamageable and
+    // EntityResource each add 4 B)
 };
 
 static_assert(sizeof(Entity) <= 128, "Entity should fit in 2 cache lines");

@@ -35,6 +35,15 @@ struct EntitySearchFilter {
         };
     }
 
+    // Resources (any faction or none), e.g. for a gatherer looking for the
+    // nearest tree. Pass `type` to look for one kind only.
+    static EntitySearchFilter resources(EntityTypeID type = {}) {
+        return {
+            .type          = type,
+            .require_flags = EntityFlagsMask::Flag23, // Resource
+        };
+    }
+
     // Entities that share at least one faction with `self`, except `self`.
     static EntitySearchFilter friends_of(const Entity& self) {
         return {
