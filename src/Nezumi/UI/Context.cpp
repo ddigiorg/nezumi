@@ -16,6 +16,7 @@
 #include "Nezumi/Input/Events/OnTextInput.hpp"
 #include "Nezumi/Render/Renderer.hpp"
 #include <algorithm> // clamp, find_if, max, min, rotate
+#include <chrono>    // steady_clock
 #include <cmath>     // floor, round
 #include <cassert>   // assert
 
@@ -85,6 +86,10 @@ void Context::begin_frame() {
         screen_size_ = camera->get_size() / scale_;
     }
     mouse_ = mouse_pixels_ / scale_;
+    if (mouse_pressed_) press_pos_ = mouse_;
+
+    now_ = std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
 
     if (font_) {
         text_scale_  = style_.font_size / font_->pixel_size();
@@ -109,9 +114,17 @@ void Context::begin_frame() {
         }
     }
 
-    ui_cursor_   = CursorStyle::Arrow;
-    focus_seen_  = false;
-    popup_drawn_ = false;
+    // A drag released since the last frame lands this frame: the target
+    // under the cursor claims it in drop_target()
+    drop_frame_   = drag_active_ && mouse_released_ && !mouse_down_;
+    drop_claimed_ = false;
+
+    ui_cursor_    = CursorStyle::Arrow;
+    focus_seen_   = false;
+    popup_drawn_  = false;
+    tooltip_seen_ = false;
+    last_rect_    = {};
+    last_hovered_ = false;
     overlay_.clear();
 }
 
@@ -122,6 +135,29 @@ void Context::end_frame() {
     // Forget a dropdown or text field whose panel wasn't drawn this frame
     if (!popup_drawn_)               popup_id_ = 0;
     if (focus_id_ && !focus_seen_)   focus_id_ = 0;
+    if (!tooltip_seen_)              tooltip_id_ = 0;
+
+    // An unclaimed drop lasts one frame after its release
+    if (unclaimed_ && unclaimed_frame_ < frame_) unclaimed_.reset();
+
+    // The dragged image follows the cursor, above everything. A drag that
+    // landed this frame and wasn't claimed is kept for take_unclaimed_drop().
+    if (drag_active_) {
+        if (drop_frame_) {
+            if (!drop_claimed_) {
+                unclaimed_ = UnclaimedDrop{
+                    .payload  = drag_,
+                    .position = mouse_,
+                    .on_panel = panel_at_(mouse_) != nullptr,
+                };
+                unclaimed_frame_ = frame_;
+            }
+            drag_active_ = false;
+            drag_id_     = 0;
+        } else {
+            draw_drag_();
+        }
+    }
 
     // A release ends any hold, even on a widget that wasn't drawn this frame
     if (mouse_released_ && !mouse_down_) {
@@ -129,10 +165,13 @@ void Context::end_frame() {
         drag_panel_ = 0;
     }
 
-    // Back to front, then the open dropdown on top. Same layer, order, kind
-    // and material for all of it, so it stays in this order and is a single
-    // instanced draw (see UIQuad.hpp).
+    // Back to front, then the open dropdown on top. One layer and kind for
+    // all of it, and a new draw order whenever the texture changes, so it
+    // stays in this order and draws in one instanced call per texture run
+    // (see UIQuad.hpp and "Drawing order" in Context.hpp).
     if (font_) {
+        submit_order_    = 0;
+        submit_material_ = font_->material();
         for (const auto& panel : panels_) {
             if (panel->drawn != frame_) continue;
             submit_(panel->chrome);
@@ -149,6 +188,7 @@ void Context::end_frame() {
     // This frame's input is used up
     mouse_pressed_  = false;
     mouse_released_ = false;
+    right_pressed_  = false;
     wheel_          = 0.0f;
     typed_.clear();
     keys_.clear();
@@ -190,6 +230,7 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     p.min_size = config.min_size;
     p.anchor   = config.position;
     p.pivot    = config.pivot;
+    p.hit_box  = config.hit_box;
     p.closable = open != nullptr && !p.has(PanelFlags::NoTitleBar);
     p.drawn    = frame_;
     p.chrome.clear();
@@ -227,10 +268,11 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     // Layout: content inside the padding and below the title, scrolled.
     // AutoSize panels grow to fit, so they never clip or scroll.
     const float title_h = title_height_(p);
+    const float border  = p.has(PanelFlags::NoBackground) ? 0.0f : thickness_(style_.border_width);
     const Rect  inner   = Rect{ { p.pos.x, p.pos.y + title_h }, p.pos + p.size }
-                              .shrink(glm::vec2(thickness_(style_.border_width)));
+                              .shrink(glm::vec2(border));
     const Rect  content = Rect{ { p.pos.x, p.pos.y + title_h }, p.pos + p.size }
-                              .shrink(style_.panel_padding);
+                              .shrink(padding_(p));
     const bool  auto_size = p.has(PanelFlags::AutoSize);
 
     if (!auto_size) {
@@ -278,10 +320,10 @@ void Context::end_panel() {
     if (p.has(PanelFlags::AutoSize)) {
         const glm::vec2 old_pos = p.pos;
         const float title_w = p.has(PanelFlags::NoTitleBar) ? 0.0f
-            : text_width_(p.title) + 2.0f * style_.panel_padding.x +
+            : text_width_(p.title) + 2.0f * padding_(p).x +
               (p.closable ? title_height_(p) : 0.0f);
 
-        p.size = p.content + 2.0f * style_.panel_padding + glm::vec2(0.0f, title_height_(p));
+        p.size = p.content + 2.0f * padding_(p) + glm::vec2(0.0f, title_height_(p));
         p.size.x = std::max(p.size.x, title_w);
         p.size   = glm::max(p.size, p.min_size);
 
@@ -292,7 +334,8 @@ void Context::end_panel() {
         clamp_to_screen_(p);
         const glm::vec2 d = p.pos - old_pos;
         if (d != glm::vec2(0.0f)) {
-            for (UIQuad& q : p.body) {
+            for (DrawItem& item : p.body) {
+                UIQuad& q = item.quad;
                 q.pos_box += glm::vec4(d, d);
                 if (q.clip_box.x > NO_CLIP.min.x) q.clip_box += glm::vec4(d, d);
             }
@@ -332,6 +375,19 @@ void Context::separator() {
     const Rect r = place_({ avail_width_(), style_.item_spacing.y }, true);
     const float y = snap_floor_(r.center().y);
     draw_box_({ { r.min.x, y }, { r.max.x, y + thickness_(1.0f) } }, style_.separator);
+}
+
+void Context::set_next_pos(glm::vec2 offset) {
+    if (!layout_.panel) return;
+    layout_.cursor    = layout_.origin + offset;
+    layout_.same_line = false;
+}
+
+Rect Context::allocate(glm::vec2 size) {
+    if (!layout_.panel) return {};
+    const Rect r = place_(size);
+    set_last_item_(r);
+    return r;
 }
 
 // -----------------------------------------------------------------------------
@@ -386,6 +442,8 @@ Context::Panel* Context::panel_at_(glm::vec2 p) const {
 }
 
 Rect Context::hit_rect_(const Panel& panel) const {
+    if (panel.hit_box.width() > 0.0f && panel.hit_box.height() > 0.0f)
+        return { panel.pos + panel.hit_box.min, panel.pos + panel.hit_box.max };
     const bool resizable = panel.has(PanelFlags::Resizable) && !panel.has(PanelFlags::AutoSize);
     return resizable ? panel.rect().expand(style_.resize_margin) : panel.rect();
 }
@@ -496,6 +554,8 @@ void Context::draw_chrome_(Panel& p) {
     const float bw      = thickness_(style_.border_width);
     const float radius  = style_.panel_rounding;
 
+    if (p.has(PanelFlags::NoBackground)) return;
+
     // Hard drop shadow, two steps
     const float s1 = thickness_(1.0f), s2 = thickness_(2.0f);
     draw_box_(Rect{ r.min + glm::vec2(0.0f, s2), r.max + glm::vec2(s2, 2.0f * s2) },
@@ -591,11 +651,15 @@ float Context::avail_width_() const {
     // An AutoSize panel is as wide as its widest widget last frame (or its
     // minimum size)
     const float right = p->has(PanelFlags::AutoSize)
-        ? layout_.origin.x + std::max(p->content.x, p->size.x - 2.0f * style_.panel_padding.x)
+        ? layout_.origin.x + std::max(p->content.x, p->size.x - 2.0f * padding_(*p).x)
         : layout_.content.max.x;
     const float x = layout_.same_line ? layout_.prev_end.x + layout_.same_space
                                       : layout_.cursor.x;
     return std::max(0.0f, right - x);
+}
+
+glm::vec2 Context::padding_(const Panel& panel) const {
+    return panel.has(PanelFlags::NoBackground) ? glm::vec2(0.0f) : style_.panel_padding;
 }
 
 float Context::label_width_(std::string_view visible) const {
@@ -621,17 +685,192 @@ bool Context::behavior_(ID id, const Rect& r, bool* hovered, bool* held) {
     if (hov && mouse_pressed_) active_id_ = id;
 
     // Clicked: released over the widget it was pressed on. Dragging off
-    // and releasing elsewhere cancels, like every desktop button.
+    // and releasing elsewhere cancels, like every desktop button, and so
+    // does dragging a payload out of it and back.
     bool clicked = false;
     if (active_id_ == id && mouse_released_) {
-        clicked    = hov;
+        clicked    = hov && drag_id_ != id;
         active_id_ = 0;
     }
 
     if (hov)     ui_cursor_ = CursorStyle::Hand;
     if (hovered) *hovered   = hov;
     if (held)    *held      = active_id_ == id && mouse_down_;
+    set_last_item_(r);
     return clicked;
+}
+
+void Context::set_last_item_(const Rect& r) {
+    last_rect_    = r;
+    last_hovered_ = over_(r);
+}
+
+bool Context::over_(const Rect& r) const {
+    if (!layout_.panel || hot_panel_ != layout_.panel->id) return false;
+    if (on_popup_) return false;
+    return r.contains(mouse_) && clip_.contains(mouse_);
+}
+
+// -----------------------------------------------------------------------------
+// Custom Widgets
+// -----------------------------------------------------------------------------
+
+Context::Interaction Context::interact(ID id, const Rect& r) {
+    Interaction it;
+    if (!layout_.panel) return it;
+    it.clicked       = behavior_(id, r, &it.hovered, &it.held);
+    it.right_clicked = it.hovered && right_pressed_;
+    return it;
+}
+
+void Context::tooltip(std::string_view text) {
+    if (!layout_.panel || text.empty()) return;
+
+    // Only while resting on it: not while a button is held or dragging
+    if (!last_hovered_ || mouse_down_ || drag_active_) return;
+
+    const ID id = hash_(text, hash_(std::string_view(reinterpret_cast<const char*>(&last_rect_.min),
+                                                     sizeof last_rect_.min), layout_.panel->id));
+    tooltip_seen_ = true;
+    if (tooltip_id_ != id) {
+        tooltip_id_    = id;
+        tooltip_start_ = now_;
+    }
+    if (now_ - tooltip_start_ >= style_.tooltip_delay)
+        draw_tooltip_(text, last_rect_);
+}
+
+void Context::draw_tooltip_(std::string_view text, const Rect& anchor) {
+    DrawList* saved_list = list_;
+    const Rect saved_clip = clip_;
+    list_ = &overlay_;
+    clip_ = NO_CLIP;
+
+    // Above the widget, centered on it, or below it if there is no room;
+    // always on screen
+    const glm::vec2 pad  = style_.frame_padding;
+    const glm::vec2 size = snap_(glm::vec2(text_width_(text), text_height_) + 2.0f * pad);
+    const float     gap  = 6.0f;
+    glm::vec2 pos = { anchor.center().x - size.x * 0.5f, anchor.min.y - gap - size.y };
+    if (pos.y < 0.0f) pos.y = anchor.max.y + gap;
+    if (screen_size_.x > 0.0f) {
+        pos.x = std::clamp(pos.x, 2.0f, std::max(2.0f, screen_size_.x - size.x - 2.0f));
+        pos.y = std::clamp(pos.y, 2.0f, std::max(2.0f, screen_size_.y - size.y - 2.0f));
+    }
+    const Rect box = Rect::from_size(snap_(pos), size);
+
+    draw_box_(box, style_.tooltip_bg, style_.frame_rounding, style_.panel_border, style_.border_width);
+    draw_text_(box.min + pad, text, style_.text);
+
+    list_ = saved_list;
+    clip_ = saved_clip;
+}
+
+// -----------------------------------------------------------------------------
+// Drag and Drop
+// -----------------------------------------------------------------------------
+
+bool Context::begin_drag(ID id, const DragPayload& payload) {
+    if (drag_active_) return drag_id_ == id;
+    if (payload.type == 0 || active_id_ != id || !mouse_down_) return false;
+
+    const glm::vec2 d = mouse_ - press_pos_;
+    if (glm::dot(d, d) < style_.drag_threshold * style_.drag_threshold) return false;
+
+    drag_active_ = true;
+    drag_id_     = id;
+    drag_        = payload;
+    if (drag_.source == 0) drag_.source = id;
+    return true;
+}
+
+DropResult Context::drop_target(const Rect& r, std::uint32_t type) {
+    DropResult result;
+    if (!drag_active_ || type == 0 || drag_.type != type) return result;
+    if (!over_(r)) return result;
+
+    result.hovered = true;
+    if (drop_frame_ && !drop_claimed_) {
+        drop_claimed_  = true;
+        result.payload = drag_;
+    }
+    return result;
+}
+
+std::optional<UnclaimedDrop> Context::take_unclaimed_drop(std::uint32_t type) {
+    if (!unclaimed_ || unclaimed_->payload.type != type) return std::nullopt;
+    std::optional<UnclaimedDrop> drop = unclaimed_;
+    unclaimed_.reset();
+    return drop;
+}
+
+void Context::draw_drag_() {
+    if (!drag_.image) return;
+    list_ = &overlay_;
+    clip_ = NO_CLIP;
+
+    // At the image's natural size, centered on the cursor, a little see-through
+    const glm::vec2 size = drag_.image.size.x > 0.0f ? drag_.image.size : glm::vec2(32.0f);
+    draw_image_(Rect::from_size(snap_(mouse_ - size * 0.5f), snap_(size)), drag_.image,
+                { 1.0f, 1.0f, 1.0f, 0.85f }, 3.0f);
+
+    list_ = nullptr;
+}
+
+// -----------------------------------------------------------------------------
+// Drawing
+// -----------------------------------------------------------------------------
+
+void Context::draw_rect(const Rect& r, const glm::vec4& color, float radius,
+                        const glm::vec4& border, float border_width)
+{
+    if (!layout_.panel) return;
+    draw_box_(r, color, radius, border, border_width);
+}
+
+void Context::draw_image(const Rect& r, const Image& image, const glm::vec4& tint, float radius) {
+    if (!layout_.panel) return;
+    draw_image_(r, image, tint, radius);
+}
+
+void Context::draw_nine_slice(const Rect& r, const NineSlice& slice, const glm::vec4& tint) {
+    if (!layout_.panel || !slice.image) return;
+
+    // Margins no bigger than half the rect, so small rects still look right
+    const glm::vec4 m = {
+        std::min(slice.margins.x, r.width()  * 0.5f), std::min(slice.margins.y, r.height() * 0.5f),
+        std::min(slice.margins.z, r.width()  * 0.5f), std::min(slice.margins.w, r.height() * 0.5f),
+    };
+    const glm::vec2 size = glm::max(slice.image.size, glm::vec2(1e-3f));
+
+    // Column and row edges in the rect, and in the image (fractions)
+    const float xs[4] = { r.min.x, r.min.x + m.x, r.max.x - m.z, r.max.x };
+    const float ys[4] = { r.min.y, r.min.y + m.y, r.max.y - m.w, r.max.y };
+    const float us[4] = { 0.0f, m.x / size.x, 1.0f - m.z / size.x, 1.0f };
+    const float vs[4] = { 0.0f, m.y / size.y, 1.0f - m.w / size.y, 1.0f };
+
+    for (int j = 0; j < 3; j++) {
+        for (int i = 0; i < 3; i++) {
+            const Rect cell = { { xs[i], ys[j] }, { xs[i + 1], ys[j + 1] } };
+            if (cell.width() <= 0.0f || cell.height() <= 0.0f) continue;
+            draw_image_(cell, slice.image.part({ us[i], vs[j], us[i + 1], vs[j + 1] }), tint);
+        }
+    }
+}
+
+float Context::draw_text(glm::vec2 pos, std::string_view text, const glm::vec4& color, float size) {
+    if (!layout_.panel) return 0.0f;
+    return draw_text_(pos, text, color, size);
+}
+
+float Context::text_width(std::string_view text, float size) const {
+    return text_width_(text, size);
+}
+
+float Context::text_height(float size) const {
+    if (!font_) return 0.0f;
+    if (size <= 0.0f) return text_height_;
+    return (font_->ascender() - font_->descender()) * size / font_->pixel_size();
 }
 
 // -----------------------------------------------------------------------------
@@ -649,13 +888,13 @@ void Context::draw_box_(const Rect& r, const glm::vec4& color, float radius,
     if (visible.width() <= 0.0f || visible.height() <= 0.0f) return;
     if (color.a <= 0.0f && (border.a <= 0.0f || border_width <= 0.0f)) return;
 
-    list_->push_back(UIQuad{
+    list_->push_back({ UIQuad{
         .pos_box      = box4(r),
         .color        = color,
         .border_color = border,
         .clip_box     = box4(clip_),
         .params       = { radius, thickness_(border_width), float(UIQuadShape::Box), 0.0f },
-    });
+    } });
 }
 
 void Context::draw_shape_(const Rect& r, UIQuadShape shape, const glm::vec4& color,
@@ -664,26 +903,44 @@ void Context::draw_shape_(const Rect& r, UIQuadShape shape, const glm::vec4& col
     const Rect visible = r.intersect(clip_);
     if (visible.width() <= 0.0f || visible.height() <= 0.0f) return;
 
-    list_->push_back(UIQuad{
+    list_->push_back({ UIQuad{
         .pos_box  = box4(r),
         .color    = color,
         .clip_box = box4(clip_),
         .params   = { 0.0f, stroke, float(shape), 0.0f },
-    });
+    } });
 }
 
-float Context::draw_text_(glm::vec2 pos, std::string_view text, const glm::vec4& color) {
+void Context::draw_image_(const Rect& r, const Image& image, const glm::vec4& tint, float radius) {
+    if (!image || tint.a <= 0.0f) return;
+    const Rect visible = r.intersect(clip_);
+    if (visible.width() <= 0.0f || visible.height() <= 0.0f) return;
+
+    list_->push_back({ UIQuad{
+        .pos_box  = box4(r),
+        .tex_box  = image.tex_box,
+        .color    = tint,
+        .clip_box = box4(clip_),
+        .params   = { radius, 0.0f, float(UIQuadShape::Image), 0.0f },
+    }, image.material });
+}
+
+float Context::draw_text_(glm::vec2 pos, std::string_view text, const glm::vec4& color,
+                          float size)
+{
     if (!font_ || text.empty()) return 0.0f;
+    if (size <= 0.0f) size = style_.font_size;
+    const float text_scale = size / font_->pixel_size();
 
     const Render::TextStyle style = {
-        .size   = style_.font_size,
+        .size   = size,
         .valign = Render::TextVAlign::Baseline,
     };
 
     // The baseline on a whole pixel, so the bottoms of letters (and, at a
     // given size, their x-height and cap height) land the same way on every
     // line instead of straddling two pixels
-    const float baseline = snap_(pos.y + font_->ascender() * text_scale_);
+    const float baseline = snap_(pos.y + font_->ascender() * text_scale);
     const float x        = snap_(pos.x);
 
     // layout_text works y up: lay out at -y, then negate back to y down
@@ -693,24 +950,25 @@ float Context::draw_text_(glm::vec2 pos, std::string_view text, const glm::vec4&
             const Rect visible = r.intersect(clip_);
             if (visible.width() <= 0.0f || visible.height() <= 0.0f) return;
 
-            list_->push_back(UIQuad{
+            list_->push_back({ UIQuad{
                 .pos_box  = box4(r),
                 .tex_box  = glyph.tex_box,
                 .color    = color,
                 .clip_box = box4(clip_),
                 .params   = { 0.0f, 0.0f, float(UIQuadShape::Glyph), 0.0f },
-            });
+            }, font_->material() });
         });
 
     return bounds.z - bounds.x;
 }
 
-float Context::text_width_(std::string_view text) const {
+float Context::text_width_(std::string_view text, float size) const {
     if (!font_ || text.empty()) return 0.0f;
+    const float text_scale = size > 0.0f ? size / font_->pixel_size() : text_scale_;
     float w = 0.0f;
     for (char c : text) {
         if (const Render::FontGlyph* g = font_->glyph_or_fallback(c))
-            w += g->advance * text_scale_;
+            w += g->advance * text_scale;
     }
     return w;
 }
@@ -731,13 +989,22 @@ void Context::draw_text_in_(const Rect& r, std::string_view text, const glm::vec
 void Context::submit_(const DrawList& list) {
     // UI pixels (y down) -> screen view (y up)
     const float h = screen_size_.y;
-    const Render::DrawParams params = {
-        .view     = config_.view,
-        .layer    = config_.layer,
-        .material = font_->material(),
-    };
+    for (const DrawItem& item : list) {
+        // A new texture starts a new run, one draw order later, so the
+        // renderer can't pull this run's quads in front of the last one's
+        if (item.material != Render::Material::None && item.material != submit_material_) {
+            submit_material_ = item.material;
+            submit_order_++;
+        }
 
-    for (const UIQuad& q : list) {
+        const Render::DrawParams params = {
+            .view     = config_.view,
+            .layer    = config_.layer,
+            .order    = submit_order_,
+            .material = submit_material_,
+        };
+
+        const UIQuad& q = item.quad;
         UIQuad out   = q;
         out.pos_box  = { q.pos_box.x,  h - q.pos_box.w,  q.pos_box.z,  h - q.pos_box.y  };
         out.clip_box = { q.clip_box.x, h - q.clip_box.w, q.clip_box.z, h - q.clip_box.y };
@@ -759,6 +1026,7 @@ void Context::subscribe_() {
 
     listeners_[1] = events_.subscribe<OnMouseButtonDown>(
         [this](const OnMouseButtonDown& e) {
+            if (e.button == MouseButton::Right) right_pressed_ = true;
             if (e.button != MouseButton::Left) return;
             mouse_down_    = true;
             mouse_pressed_ = true;

@@ -62,6 +62,12 @@ void InputMap::clear_bindings() {
     bindings_.clear();
 }
 
+std::optional<InputSource> InputMap::first_binding(ActionID action) const {
+    for (const Binding& b : bindings_)
+        if (b.action == action) return b.source;
+    return std::nullopt;
+}
+
 // -----------------------------------------------------------------------------
 // Actions
 // -----------------------------------------------------------------------------

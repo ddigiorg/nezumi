@@ -8,8 +8,10 @@
 // Why one kind for everything: the renderer orders draws with the same layer
 // and order by kind, then material. With boxes and text as separate kinds, a
 // window's text would draw above (or below) every other window's boxes, not
-// just its own. With one kind and one material (the UI font's atlas), the
-// whole UI keeps submission order and still draws in a single instanced call.
+// just its own. With one kind, the UI keeps submission order and draws in one
+// instanced call per texture run: text samples the font's atlas, images their
+// own atlas, and boxes and icons sample nothing, so they join any run. The
+// UI context gives each run its own draw order (see UI/Context.hpp).
 //
 // Why the clip box: windows clip their content (scrolled or resized), and
 // the renderer has no scissor state. Clipping happens in the vertex shader
@@ -34,16 +36,17 @@ enum class UIQuadShape : std::uint8_t {
     TriangleRight = 5, // collapsed section arrow
     Circle        = 6, // filled circle in the box (toggle knob, radio)
     Corner        = 7, // bottom-right half of the box (resize grip)
+    Image         = 8, // the material's texture at tex_box, times color; corners rounded by radius
 };
 
 struct UIQuad {
     glm::vec4 pos_box      = { 0.0f, 0.0f, 0.0f, 0.0f }; // view { min_x, min_y, max_x, max_y }
-    glm::vec4 tex_box      = { 0.0f, 0.0f, 0.0f, 0.0f }; // Glyph: atlas { min_u, min_v, max_u, max_v }, v down
+    glm::vec4 tex_box      = { 0.0f, 0.0f, 0.0f, 0.0f }; // Glyph, Image: atlas { min_u, min_v, max_u, max_v }, v down
     glm::vec4 color        = { 1.0f, 1.0f, 1.0f, 1.0f }; // fill (or glyph / icon color)
     glm::vec4 border_color = { 0.0f, 0.0f, 0.0f, 0.0f }; // Box: border
     glm::vec4 clip_box     = { -1e9f, -1e9f, 1e9f, 1e9f }; // view; nothing outside is drawn
 
-    // x: corner radius (Box)
+    // x: corner radius (Box, Image)
     // y: border width (Box) or stroke width (Cross, Check), in view units
     // z: UIQuadShape
     // w: glyph weight, in SDF value units (Glyph; see TextGlyphSDF)

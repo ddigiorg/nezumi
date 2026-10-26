@@ -35,7 +35,40 @@
 //
 // Widgets stack top to bottom. same_line() puts the next widget to the right
 // of the previous one instead. Sliders, text fields and dropdowns draw the
-// control first and their label to its right.
+// control first and their label to its right. set_next_pos() places the next
+// widget anywhere in the panel, for hand-made layouts like an action bar.
+//
+// ## Custom widgets
+//
+// A game builds its own widgets from the same parts the built-in ones use:
+// allocate() reserves a rect at the layout cursor, interact() turns the mouse
+// over it into hovered / held / clicked, and the draw_* calls draw into the
+// panel, clipped to it:
+//
+//   const UI::Rect r  = ui.allocate({ 28, 28 });
+//   const auto     it = ui.interact(ui.get_id("bag"), r);
+//   ui.draw_nine_slice(r, it.held ? button_down : button_up);
+//   ui.draw_image(r.shrink({ 5, 5 }), bag_icon);
+//   ui.tooltip("Inventory (B)");
+//   if (it.clicked) inventory_open = !inventory_open;
+//
+// ## Images, drag and drop, slot grids
+//
+// Images come from any Render::Atlas (Image.hpp); a NineSlice stretches one
+// into a frame of any size. Drag and drop is described in DragDrop.hpp, and
+// slot_grid() (SlotGrid.hpp) combines all three into the item slot grid that
+// action bars, inventories and chests share.
+//
+// ## Drawing order
+//
+// Within a panel, things draw in call order: a later call covers an earlier
+// one. Boxes, icons and text sample different textures (an image's atlas,
+// the font's atlas), and the renderer batches by texture only within one
+// draw order, so the context bumps the order each time the texture changes.
+// Each change costs a draw call, so draw a panel's images together and its
+// text together where the look allows (slot_grid draws all frames, then all
+// icons, then all labels). Boxes and icons like the close button need no
+// texture and never split a run.
 //
 // ## Frame
 //
@@ -63,7 +96,7 @@
 //
 // ## Not handled (yet)
 //
-// Keyboard and gamepad navigation, tooltips, tables, images, word wrap,
+// Keyboard and gamepad navigation, tables, word wrap,
 // clipboard and text selection, UTF-8 (the font covers ASCII), HiDPI scale.
 // =============================================================================
 
@@ -73,8 +106,11 @@
 #include "Nezumi/Input/IInputCapture.hpp"
 #include "Nezumi/Input/ScanCode.hpp"
 #include "Nezumi/Render/Kinds/UIQuad.hpp"
+#include "Nezumi/UI/DragDrop.hpp"
+#include "Nezumi/UI/Image.hpp"
 #include "Nezumi/UI/PanelConfig.hpp"
 #include "Nezumi/UI/Rect.hpp"
+#include "Nezumi/UI/SlotGrid.hpp"
 #include "Nezumi/UI/Style.hpp"
 #include "Nezumi/UI/UIConfig.hpp"
 #include <algorithm>   // max
@@ -84,6 +120,7 @@
 #include <cstdint>     // uint32_t, uint64_t
 #include <glm/glm.hpp> // vec2, vec4
 #include <memory>      // unique_ptr
+#include <optional>    // optional
 #include <span>        // span
 #include <string>      // string
 #include <string_view> // string_view
@@ -166,6 +203,18 @@ public:
     // Horizontal line across the panel
     void separator();
 
+    // Put the next widget at `offset` from the content's top-left corner
+    // (inside the padding), instead of below the previous one. The widgets
+    // after it continue from there.
+    void set_next_pos(glm::vec2 offset);
+
+    // The current panel's content area (inside the padding), UI units
+    Rect content_rect() const { return layout_.content; }
+
+    // Space for a custom widget of `size` at the layout cursor; returns
+    // where it goes. Counts toward an AutoSize panel's size like any widget.
+    Rect allocate(glm::vec2 size);
+
     // -------------------------------------------------------------------------
     // Output Widgets
     // -------------------------------------------------------------------------
@@ -173,6 +222,15 @@ public:
     void text   (std::string_view text);
     void text   (std::string_view text, const glm::vec4& color);
     void heading(std::string_view text); // style.heading color
+
+    // size { 0, 0 }: the image's natural size
+    void image(const Image& image, glm::vec2 size = { 0.0f, 0.0f },
+               const glm::vec4& tint = { 1.0f, 1.0f, 1.0f, 1.0f });
+
+    // A tooltip for the previous widget, shown once the cursor has rested on
+    // it for style.tooltip_delay seconds. Call it every frame, right after
+    // the widget (after slot_grid: for its hovered slot).
+    void tooltip(std::string_view text);
 
     // -------------------------------------------------------------------------
     // Input Widgets
@@ -203,6 +261,80 @@ public:
     // One choice from `items`; `selected` is an index into it (-1 = none)
     bool dropdown(std::string_view label, int& selected,
                   std::span<const std::string_view> items);
+
+    // Grid of item slots, `columns` wide, filled row by row (see
+    // SlotGrid.hpp). With a `drag_type`, icons can be dragged out of its
+    // slots and drags of that type dropped onto them; 0 turns dragging off.
+    SlotGridResult slot_grid(std::string_view label, std::span<const Slot> slots,
+                             int columns, const SlotStyle& style = {},
+                             std::uint32_t drag_type = 0);
+
+    // -------------------------------------------------------------------------
+    // Custom Widgets
+    //
+    // The parts the widgets above are made of, for games that make their
+    // own. See "Custom widgets" at the top.
+    // -------------------------------------------------------------------------
+
+    struct Interaction {
+        bool hovered       = false; // cursor over it, nothing else in the way
+        bool held          = false; // pressed on it, mouse still down
+        bool clicked       = false; // pressed and released on it (not dragged away)
+        bool right_clicked = false; // right button pressed on it
+    };
+
+    // Id of `label` in the current panel, as the built-in widgets make them
+    ID get_id(std::string_view label) const { return id_(label); }
+
+    // Mouse interaction with `r` this frame. Also makes `r` the previous
+    // widget, for tooltip().
+    Interaction interact(ID id, const Rect& r);
+
+    // -------------------------------------------------------------------------
+    // Drag and Drop (see DragDrop.hpp)
+    // -------------------------------------------------------------------------
+
+    // Call every frame for a draggable widget, after interact(id, ...). When
+    // the player has pressed on it and moved a few points, a drag of
+    // `payload` starts (source defaults to `id`). True while a drag from
+    // `id` is in flight, including the frame it starts.
+    bool begin_drag(ID id, const DragPayload& payload);
+
+    // A drop target at `r` for drags of `type`, in the current panel
+    DropResult drop_target(const Rect& r, std::uint32_t type);
+
+    // The drag in flight, or nullptr
+    const DragPayload* drag_payload() const { return drag_active_ ? &drag_ : nullptr; }
+
+    // A drag of `type` that was released where no target took it, during
+    // the frame after (and the ticks before it). Taking it clears it.
+    std::optional<UnclaimedDrop> take_unclaimed_drop(std::uint32_t type);
+
+    // -------------------------------------------------------------------------
+    // Drawing
+    //
+    // Into the current panel, clipped to its content like its widgets. UI
+    // units, y down. Rects aren't snapped: snap them yourself (whole points
+    // at 1x and 2x, or round(v * scale()) / scale() in general) for crisp
+    // edges.
+    // -------------------------------------------------------------------------
+
+    void draw_rect(const Rect& r, const glm::vec4& color, float radius = 0.0f,
+                   const glm::vec4& border = {}, float border_width = 0.0f);
+
+    // `radius` rounds the image's corners, as a mask
+    void draw_image(const Rect& r, const Image& image,
+                    const glm::vec4& tint = { 1.0f, 1.0f, 1.0f, 1.0f }, float radius = 0.0f);
+
+    void draw_nine_slice(const Rect& r, const NineSlice& slice,
+                         const glm::vec4& tint = { 1.0f, 1.0f, 1.0f, 1.0f });
+
+    // Text whose first line's top is at `pos`; size 0 is style.font_size.
+    // Returns its width.
+    float draw_text(glm::vec2 pos, std::string_view text, const glm::vec4& color,
+                    float size = 0.0f);
+    float text_width(std::string_view text, float size = 0.0f) const;
+    float text_height(float size = 0.0f) const; // ascender to descender
 
     // -------------------------------------------------------------------------
     // Input Capture (IInputCapture)
@@ -251,7 +383,13 @@ private:
     // Types
     // -------------------------------------------------------------------------
 
-    using DrawList = std::vector<Render::UIQuad>;
+    // A quad and the texture it samples: an image's atlas, the font's (for
+    // glyphs), or none for boxes and icons, which draw with any
+    struct DrawItem {
+        Render::UIQuad     quad     = {};
+        Render::MaterialID material = Render::Material::None;
+    };
+    using DrawList = std::vector<DrawItem>;
 
     struct Panel {
         ID          id         = 0;
@@ -264,6 +402,7 @@ private:
         glm::vec2   min_size   = { 0.0f, 0.0f };
         glm::vec2   anchor     = { 0.0f, 0.0f }; // PanelConfig::position
         glm::vec2   pivot      = { 0.0f, 0.0f };
+        Rect        hit_box    = {};    // PanelConfig::hit_box
         bool        place      = false; // apply anchor and pivot in end_panel
         bool        closable   = false;
         bool        close_hot  = false; // close button under the cursor
@@ -331,6 +470,7 @@ private:
     float  control_width_() const;
     float  avail_width_() const; // from the cursor to the content's right edge
     float  label_width_(std::string_view visible) const; // 0 for an empty label
+    glm::vec2 padding_(const Panel& panel) const; // none with NoBackground
     void   draw_label_(const Rect& row, float x, std::string_view visible);
 
     // Mouse over `r`, in the current panel, nothing else in the way
@@ -339,6 +479,16 @@ private:
     // Press/release logic shared by clickable widgets: true when clicked
     // (pressed and released on it). `hovered` / `held` are optional outputs.
     bool   behavior_(ID id, const Rect& r, bool* hovered = nullptr, bool* held = nullptr);
+
+    // Make `r` the previous widget, for tooltip()
+    void   set_last_item_(const Rect& r);
+
+    // Cursor over `r` in the current panel, ignoring which widget is held
+    // (drop targets light up while their own panel's widget is held)
+    bool   over_(const Rect& r) const;
+
+    void   draw_tooltip_(std::string_view text, const Rect& anchor);
+    void   draw_drag_();
 
     bool   slider_(std::string_view label, float& value, float min, float max,
                    bool integer, const char* format);
@@ -367,14 +517,22 @@ private:
                       const glm::vec4& border = {}, float border_width = 0.0f);
     void  draw_shape_(const Rect& r, Render::UIQuadShape shape, const glm::vec4& color,
                       float stroke = 0.0f);
-    // Text whose first line's top is at `pos`; returns its width
-    float draw_text_ (glm::vec2 pos, std::string_view text, const glm::vec4& color);
-    float text_width_(std::string_view text) const;
+    void  draw_image_(const Rect& r, const Image& image, const glm::vec4& tint,
+                      float radius = 0.0f);
+    // Text whose first line's top is at `pos`; returns its width. Size 0 is
+    // style_.font_size.
+    float draw_text_ (glm::vec2 pos, std::string_view text, const glm::vec4& color,
+                      float size = 0.0f);
+    float text_width_(std::string_view text, float size = 0.0f) const;
     // Text vertically centered in `r`, starting at r.min.x + pad, clipped to r
     void  draw_text_in_(const Rect& r, std::string_view text, const glm::vec4& color,
                         float pad, bool center = false);
 
     void  submit_(const DrawList& list);
+
+    // Draw order and texture of the run being submitted (see "Drawing order")
+    std::int32_t       submit_order_    = 0;
+    Render::MaterialID submit_material_ = Render::Material::None;
 
     // -------------------------------------------------------------------------
     // Helpers: events (Context.cpp)
@@ -430,12 +588,33 @@ private:
     bool popup_drawn_ = false;
     bool on_popup_    = false; // cursor over the open dropdown this frame
 
+    // Previous widget, for tooltip()
+    Rect last_rect_    = {};
+    bool last_hovered_ = false;
+
+    // Tooltip being timed: a hash of its text and panel, and since when
+    ID     tooltip_id_    = 0;
+    double tooltip_start_ = 0.0;
+    bool   tooltip_seen_  = false;
+    double now_           = 0.0; // seconds, steady clock, at begin_frame
+
+    // Drag and drop
+    bool        drag_active_  = false;
+    ID          drag_id_      = 0;     // widget it started on
+    DragPayload drag_         = {};
+    bool        drop_frame_   = false; // released this frame: targets may claim it
+    bool        drop_claimed_ = false;
+    std::optional<UnclaimedDrop> unclaimed_       = {};
+    std::uint64_t                unclaimed_frame_ = 0;
+
     // Input gathered from events since the last frame
     glm::vec2         mouse_          = { -1.0f, -1.0f }; // UI units
     glm::vec2         mouse_pixels_   = { -1.0f, -1.0f }; // window pixels, from events
     bool              mouse_down_     = false;
     bool              mouse_pressed_  = false;
     bool              mouse_released_ = false;
+    bool              right_pressed_  = false;
+    glm::vec2         press_pos_      = {};   // where the left button went down, UI units
     float             wheel_          = 0.0f;
     std::string       typed_          = {};
     std::vector<ScanCode> keys_       = {};   // editing keys, with repeats

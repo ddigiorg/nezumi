@@ -11,7 +11,8 @@
 
 #version 330 core
 
-// The UI font's atlas, bound as the material's texture. Only Glyph uses it.
+// The material's texture: the UI font's atlas for Glyph, an image's atlas for
+// Image. The other shapes ignore it.
 uniform sampler2D u_texture;
 
 in vec2      v_local;
@@ -31,6 +32,7 @@ const int SHAPE_TRIANGLE_DOWN  = 4;
 const int SHAPE_TRIANGLE_RIGHT = 5;
 const int SHAPE_CIRCLE         = 6;
 const int SHAPE_CORNER         = 7;
+const int SHAPE_IMAGE          = 8;
 
 // Distance to a rounded box centered at the origin.
 float sd_round_box(vec2 p, vec2 half_size, float r) {
@@ -69,7 +71,8 @@ vec4 shade(float d, vec4 c) {
 
 void main() {
     // Sampled outside the branches so its derivatives are always defined.
-    float sdf = texture(u_texture, v_tex).r;
+    vec4  tex = texture(u_texture, v_tex);
+    float sdf = tex.r;
 
     int   shape  = int(v_params.z + 0.5);
     vec2  p      = v_local;
@@ -122,6 +125,18 @@ void main() {
     else if (shape == SHAPE_CIRCLE) {
         float d = length(p) - min(h.x, h.y);
         pm = shade(d, v_color);
+    }
+    else if (shape == SHAPE_IMAGE) {
+        // Straight-alpha texel times the tint, masked to a rounded box
+        vec4  c    = tex * v_color;
+        float mask = 1.0;
+        if (v_params.x > 0.0) {
+            float d  = sd_round_box(p, h, v_params.x);
+            float aa = max(fwidth(d), 1e-5);
+            mask = clamp(0.5 - d / aa, 0.0, 1.0);
+        }
+        float a = c.a * mask;
+        pm = vec4(c.rgb * a, a);
     }
     else if (shape == SHAPE_CORNER) {
         float d = sd_triangle(p, vec2(h.x, h.y), vec2(h.x, -h.y), vec2(-h.x, -h.y));

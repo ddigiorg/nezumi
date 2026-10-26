@@ -38,6 +38,8 @@ struct Style {
     float     resize_margin    = 5.0f;   // grab zone on each side of a resizable edge
     float     scrollbar_width  = 6.0f;
     float     scroll_speed     = 40.0f;  // pixels per wheel notch
+    float     tooltip_delay    = 0.4f;   // seconds of hover before a tooltip shows
+    float     drag_threshold   = 4.0f;   // points the mouse moves before a press drags
 
     // -------------------------------------------------------------------------
     // Colors
@@ -70,6 +72,7 @@ struct Style {
     glm::vec4 separator          = { 0.24f, 0.24f, 0.23f, 1.00f };
     glm::vec4 scrollbar          = { 0.42f, 0.42f, 0.40f, 0.80f };
     glm::vec4 selection          = { 0.35f, 0.23f, 0.60f, 1.00f }; // #8250df, dimmed
+    glm::vec4 tooltip_bg         = { 0.10f, 0.10f, 0.09f, 0.96f };
 };
 
 } // namespace Nezumi::UI

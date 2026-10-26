@@ -24,6 +24,7 @@
 
 #pragma once
 #include "Nezumi/Core/EnumClassFlags.hpp"
+#include "Nezumi/UI/Rect.hpp"
 #include <cstdint>     // uint8_t
 #include <glm/glm.hpp> // vec2
 
@@ -36,6 +37,7 @@ enum class PanelFlags : std::uint8_t {
     AutoSize    = 1u << 2, // size to fit the content every frame (not resizable)
     NoTitleBar  = 1u << 3, // no title bar, so no close button and no dragging
     PinPosition = 1u << 4, // apply position and pivot every frame
+    NoBackground = 1u << 5, // no background, border, shadow or padding: the game draws its own
 };
 ENUM_CLASS_FLAGS(PanelFlags);
 
@@ -54,6 +56,12 @@ struct PanelConfig {
     glm::vec2 min_size = { 120.0f, 60.0f };
 
     PanelFlags flags   = PanelFlags::Movable;
+
+    // The part of the panel that takes the mouse, from its top-left corner;
+    // empty (the default): all of it. Lets a panel with decorations that
+    // stick out (an action bar's flanking statues) claim only its bar, so
+    // clicks on the see-through parts reach the game.
+    Rect hit_box = {};
 };
 
 } // namespace Nezumi::UI

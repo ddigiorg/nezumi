@@ -8,6 +8,7 @@
 #include "Nezumi/UI/Context.hpp"
 #include "Nezumi/Render/Text/Font.hpp"
 #include <algorithm> // clamp, max, min
+#include <array>     // array
 #include <cmath>     // round
 #include <cstdio>    // snprintf
 
@@ -34,6 +35,15 @@ void Context::text(std::string_view text, const glm::vec4& color) {
 
 void Context::heading(std::string_view text) {
     this->text(text, style_.heading);
+}
+
+void Context::image(const Image& image, glm::vec2 size, const glm::vec4& tint) {
+    if (!layout_.panel) return;
+
+    const glm::vec2 s = size.x > 0.0f && size.y > 0.0f ? size : image.size;
+    const Rect r = place_(snap_(s));
+    set_last_item_(r);
+    draw_image_(r, image, tint);
 }
 
 // -----------------------------------------------------------------------------
@@ -401,6 +411,159 @@ bool Context::dropdown(std::string_view label, int& selected,
     list_ = saved_list;
     clip_ = saved_clip;
     return changed;
+}
+
+// -----------------------------------------------------------------------------
+// Slot Grid
+// -----------------------------------------------------------------------------
+
+SlotGridResult Context::slot_grid(std::string_view label, std::span<const Slot> slots,
+                                  int columns, const SlotStyle& style, std::uint32_t drag_type)
+{
+    SlotGridResult result;
+    if (!layout_.panel || slots.empty()) return result;
+
+    const ID  id    = id_(label);
+    const int count = static_cast<int>(slots.size());
+    const int cols  = std::clamp(columns, 1, count);
+    const int rows  = (count + cols - 1) / cols;
+
+    const glm::vec2 cell = snap_(style.slot_size);
+    const glm::vec2 gap  = snap_(style.spacing);
+    const Rect grid = place_({ cols * cell.x + (cols - 1) * gap.x,
+                               rows * cell.y + (rows - 1) * gap.y });
+
+    const auto slot_rect = [&](int i) {
+        const glm::vec2 at = { static_cast<float>(i % cols), static_cast<float>(i / cols) };
+        return Rect::from_size(grid.min + at * (cell + gap), cell);
+    };
+
+    // Interaction first, so every pass below draws this frame's state. Per
+    // slot: held, hovered, and whether a drag it would take is over it.
+    constexpr int MAX_SLOTS = 256;
+    const int n = std::min(count, MAX_SLOTS);
+    std::array<std::uint8_t, MAX_SLOTS> state = {};
+    enum : std::uint8_t { Hovered = 1, Held = 2, DropHover = 4, DragSource = 8 };
+
+    for (int i = 0; i < n; i++) {
+        const Slot& slot = slots[static_cast<std::size_t>(i)];
+        const Rect  r    = slot_rect(i);
+        const ID    sid  = hash_(std::string_view(reinterpret_cast<const char*>(&i), sizeof i), id);
+
+        bool hovered = false, held = false;
+        if (behavior_(sid, r, &hovered, &held)) result.clicked = i;
+        if (hovered) {
+            result.hovered = i;
+            if (right_pressed_) result.right_clicked = i;
+        }
+        if (hovered) state[i] |= Hovered;
+        if (held)    state[i] |= Held;
+
+        if (drag_type != 0) {
+            if (slot.icon) {
+                const bool was_dragging = drag_active_;
+                const DragPayload payload = {
+                    .type   = drag_type,
+                    .value  = slot.value,
+                    .source = id,
+                    .index  = i,
+                    .image  = slot.icon,
+                };
+                if (begin_drag(sid, payload)) {
+                    if (!was_dragging) result.drag_started = i;
+                    result.dragging = i;
+                    state[i] |= DragSource;
+                }
+            }
+
+            const DropResult drop = drop_target(r, drag_type);
+            if (drop.hovered) state[i] |= DropHover;
+            if (drop.payload) {
+                result.dropped = i;
+                result.payload = *drop.payload;
+            }
+        }
+    }
+
+    // The hovered slot is the previous widget, for tooltip()
+    if (result.hovered >= 0) {
+        last_rect_    = slot_rect(result.hovered);
+        last_hovered_ = true;
+    } else {
+        last_rect_    = grid;
+        last_hovered_ = false;
+    }
+
+    // Drawn in passes, all frames, then all icons, then overlays and text,
+    // so a whole grid is a few texture runs whatever its size
+    for (int i = 0; i < n; i++) {
+        const Rect r = slot_rect(i);
+        if (style.frame) draw_nine_slice(r, style.frame);
+        else             draw_box_(r, style_.frame_bg, style_.frame_rounding,
+                                   style_.frame_border, style_.border_width);
+    }
+
+    const auto icon_rect = [&](int i) {
+        Rect r = slot_rect(i).shrink(glm::vec2(snap_(style.icon_inset)));
+        const bool pressed = (state[i] & Held) || slots[static_cast<std::size_t>(i)].flash;
+        if (pressed) r = r.shrink(glm::vec2(thickness_(1.0f))); // pushed in
+        return r;
+    };
+
+    for (int i = 0; i < n; i++) {
+        const Slot& slot = slots[static_cast<std::size_t>(i)];
+        if (!slot.icon) continue;
+        const float b = slot.disabled ? style.disabled_tint : 1.0f;
+        const float a = (state[i] & DragSource) ? 0.35f : 1.0f; // ghost while dragged away
+        draw_image_(icon_rect(i), slot.icon, { b, b, b, a }, style.icon_radius);
+    }
+
+    for (int i = 0; i < n; i++) {
+        const Slot& slot = slots[static_cast<std::size_t>(i)];
+        const Rect  r    = icon_rect(i);
+
+        if (slot.cooldown > 0.0f) {
+            const float h = snap_(r.height() * std::clamp(slot.cooldown, 0.0f, 1.0f));
+            draw_box_({ r.min, { r.max.x, r.min.y + h } }, style.cooldown, 0.0f);
+        }
+        if ((state[i] & Held) || slot.flash) draw_box_(r, style.pressed, style.icon_radius);
+        if (state[i] & DropHover)            draw_box_(r, style.drop_hover, style.icon_radius);
+        else if (state[i] & Hovered) {
+            draw_box_(r, style.hover, style.icon_radius);
+            if (style.highlight.a > 0.0f)
+                draw_box_(slot_rect(i), {}, style_.frame_rounding, style.highlight, 1.0f);
+        }
+    }
+
+    if (style.frame_over) {
+        for (int i = 0; i < n; i++) draw_nine_slice(slot_rect(i), style.frame_over);
+    }
+
+    // Hotkey top-right, count bottom-right, each with a 1-pixel shadow so it
+    // reads over any icon
+    const float th  = text_height(style.label_size);
+    const float pad = snap_(style.icon_inset + 1.0f);
+    const float sh  = thickness_(1.0f);
+    const glm::vec4 shadow = { 0.0f, 0.0f, 0.0f, 0.9f };
+    for (int i = 0; i < n; i++) {
+        const Slot& slot = slots[static_cast<std::size_t>(i)];
+        const Rect  r    = slot_rect(i);
+        if (!slot.label.empty()) {
+            const glm::vec2 at = { r.max.x - pad - text_width_(slot.label, style.label_size),
+                                   r.min.y + pad - 1.0f };
+            draw_text_(at + glm::vec2(sh), slot.label, shadow, style.label_size);
+            draw_text_(at, slot.label, slot.disabled ? style_.text_dim : style.label_color,
+                       style.label_size);
+        }
+        if (!slot.count.empty()) {
+            const glm::vec2 at = { r.max.x - pad - text_width_(slot.count, style.label_size),
+                                   r.max.y - pad - th + 1.0f };
+            draw_text_(at + glm::vec2(sh), slot.count, shadow, style.label_size);
+            draw_text_(at, slot.count, style.count_color, style.label_size);
+        }
+    }
+
+    return result;
 }
 
 } // namespace Nezumi::UI

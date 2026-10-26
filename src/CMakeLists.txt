@@ -78,6 +78,7 @@ target_compile_options(nezumi_logger PRIVATE ${NEZUMI_WARNINGS})
 
 add_library(nezumi_input STATIC
     Nezumi/Input/InputMap.cpp
+    Nezumi/Input/KeyName.cpp
 )
 
 target_compile_features(nezumi_input PUBLIC cxx_std_20)

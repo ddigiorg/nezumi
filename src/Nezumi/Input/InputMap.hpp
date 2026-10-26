@@ -43,6 +43,7 @@
 #include <bitset>           // bitset
 #include <glm/glm.hpp>      // vec2
 #include <initializer_list> // initializer_list
+#include <optional>         // optional
 #include <span>             // span
 #include <vector>           // vector
 
@@ -97,6 +98,10 @@ public:
 
     // Every binding, in the order bound (e.g. for a settings screen)
     std::span<const Binding> bindings() const { return bindings_; }
+
+    // The action's first input, in the order bound (e.g. to show it on an
+    // action bar with input_name() from KeyName.hpp); nullopt if unbound
+    std::optional<InputSource> first_binding(ActionID action) const;
 
     // -------------------------------------------------------------------------
     // Actions
