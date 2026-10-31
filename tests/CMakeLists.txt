@@ -35,7 +35,7 @@ target_link_libraries(nezumi_test_support INTERFACE Nezumi::Engine)
 #
 # Options:
 #   NEEDS_DISPLAY  Label the test "display" so headless CI can skip it.
-#                  Use for any test that opens a Window or Renderer.
+#                  Use for any test that opens a Window or a renderer.
 #
 # Usage:
 #   add_test_exe(test_logger)

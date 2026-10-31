@@ -16,8 +16,8 @@
 // =============================================================================
 
 #pragma once
-#include "Nezumi/Render/Core/Frame/CommandQueue.hpp"
 #include "Nezumi/Render/2D/Batch/DrawBatch.hpp"
+#include "Nezumi/Render/Core/Frame/CommandQueue.hpp"
 #include "Nezumi/Render/Core/Frame/DrawCommand.hpp"
 #include "Nezumi/Render/Core/Frame/StreamBuffer.hpp"
 #include <cstdint> // uint32_t

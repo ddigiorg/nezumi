@@ -20,9 +20,9 @@
 // =============================================================================
 
 #pragma once
-#include "Nezumi/Render/Core/View/ViewData.hpp"
 #include "Nezumi/Render/2D/Camera/CameraConfig.hpp"
 #include "Nezumi/Render/2D/Camera/CameraOrigin.hpp"
+#include "Nezumi/Render/Core/View/ViewData.hpp"
 #include <glm/glm.hpp>
 
 namespace Nezumi::Render {

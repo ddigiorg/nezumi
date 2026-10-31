@@ -104,7 +104,6 @@
 #include "Nezumi/Render/2D/Camera/Camera2D.hpp"
 #include "Nezumi/Render/2D/Camera/CameraConfig.hpp"
 #include "Nezumi/Render/2D/Camera/CameraOrigin.hpp"
-#include "Nezumi/Render/2D/DrawParams.hpp"
 #include "Nezumi/Render/2D/Kind/KindConcept.hpp"
 #include "Nezumi/Render/2D/Kind/KindID.hpp"
 #include "Nezumi/Render/2D/Kind/KindRegistry.hpp"
@@ -118,24 +117,25 @@
 #include "Nezumi/Render/2D/Kinds/QuadKind.hpp"
 #include "Nezumi/Render/2D/Kinds/Rectangle.hpp"
 #include "Nezumi/Render/2D/Kinds/RectangleFilledKind.hpp"
-#include "Nezumi/Render/2D/Kinds/RectangleUnfilledKind.hpp"
 #include "Nezumi/Render/2D/Kinds/RectangleSDF.hpp"
 #include "Nezumi/Render/2D/Kinds/RectangleSDFKind.hpp"
+#include "Nezumi/Render/2D/Kinds/RectangleUnfilledKind.hpp"
 #include "Nezumi/Render/2D/Kinds/Sprite.hpp"
 #include "Nezumi/Render/2D/Kinds/SpriteKind.hpp"
 #include "Nezumi/Render/2D/Kinds/TextGlyphSDF.hpp"
 #include "Nezumi/Render/2D/Kinds/TextGlyphSDFKind.hpp"
 #include "Nezumi/Render/2D/Kinds/UIQuad.hpp"
 #include "Nezumi/Render/2D/Kinds/UIQuadKind.hpp"
+#include "Nezumi/Render/2D/DrawParams.hpp"
 #include "Nezumi/Render/2D/Renderer2DConfig.hpp"
 #include "Nezumi/Render/Core/Frame/CommandQueue.hpp"
 #include "Nezumi/Render/Core/Frame/IRenderFeature.hpp"
 #include "Nezumi/Render/Core/Material/MaterialID.hpp"
-#include "Nezumi/Render/Core/RenderCore.hpp"
 #include "Nezumi/Render/Core/Text/Font.hpp"
 #include "Nezumi/Render/Core/Text/FontConfig.hpp"
 #include "Nezumi/Render/Core/Text/Text.hpp"
 #include "Nezumi/Render/Core/View/ViewID.hpp"
+#include "Nezumi/Render/Core/RenderCore.hpp"
 #include "Nezumi/RHI/RHI.hpp"
 
 namespace Nezumi::Render {
@@ -244,7 +244,7 @@ public:
         const DrawParams&           params = {})
     {
         assert(core_.in_frame() &&
-               "Renderer2D: drawing outside begin_frame and end_frame");
+               "Renderer2D: drawing outside RenderCore::begin_frame and end_frame");
         assert(params.view < VIEW_CAPACITY && views_[params.view] &&
                "Renderer2D: drawing to a view with no camera (see set_view)");
         // TODO: assert instead of ensure since kinds should be registered

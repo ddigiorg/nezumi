@@ -196,7 +196,7 @@ target_link_libraries(nezumi_world
 # Control
 #
 # Gameplay-facing controllers that turn input into actions on other subsystems
-# (e.g. CameraController drives a Render::Camera). Sits above Render and Input
+# (e.g. CameraController drives a Render::Camera2D). Sits above Render and Input
 # so neither of those has to know about the other.
 # ------------------------------------------------------------------------------
 

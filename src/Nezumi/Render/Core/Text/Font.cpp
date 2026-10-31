@@ -6,9 +6,9 @@
 
 #include "Nezumi/Render/Core/Text/Font.hpp"
 
-#include "Nezumi/Render/Core/Material/MaterialTable.hpp"
 #include "Nezumi/Core/BasePath.hpp"
 #include "Nezumi/Core/ReadFile.hpp"
+#include "Nezumi/Render/Core/Material/MaterialTable.hpp"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
