@@ -150,6 +150,7 @@ add_library(nezumi_render STATIC
     Nezumi/Render/Core/Text/Font.cpp
     Nezumi/Render/2D/Camera/Camera2D.cpp
     Nezumi/Render/2D/Renderer2D.cpp
+    Nezumi/Render/Core/RenderCore.cpp
 )
 
 target_compile_features(nezumi_render PUBLIC cxx_std_20)

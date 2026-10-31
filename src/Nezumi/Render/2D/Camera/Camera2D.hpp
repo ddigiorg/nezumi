@@ -1,7 +1,8 @@
 // =============================================================================
 // Camera2D.hpp
 //
-// A 2D orthographic camera.
+// A 2D orthographic camera. Renderer2D maps views to cameras and publishes
+// each one's matrices to RenderCore every frame (get_view_data).
 //
 // World units to screen pixels: one world unit spans get_scale() pixels, where
 //
@@ -19,6 +20,7 @@
 // =============================================================================
 
 #pragma once
+#include "Nezumi/Render/Core/View/ViewData.hpp"
 #include "Nezumi/Render/2D/Camera/CameraConfig.hpp"
 #include "Nezumi/Render/2D/Camera/CameraOrigin.hpp"
 #include <glm/glm.hpp>
@@ -67,6 +69,11 @@ public:
     glm::mat4 get_view()            const { return view_;                    }
     glm::mat4 get_proj()            const { return proj_;                    }
     glm::mat4 get_vp()              const { return proj_ * view_;            }
+
+    // Matrices and position for RenderCore::set_view (see ViewData).
+    ViewData  get_view_data()       const {
+        return { view_, proj_, proj_ * view_, glm::vec3(position_, 0.0f) };
+    }
 
     // Convert a screen-space position (pixels) to world-space
     glm::vec2 screen_to_world(glm::vec2 screen_pos) const;

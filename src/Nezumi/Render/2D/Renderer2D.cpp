@@ -12,15 +12,11 @@ namespace Nezumi::Render {
 // Construction & Destruction
 // -----------------------------------------------------------------------------
 
-Renderer2D::Renderer2D(RHI::Device& device, const Renderer2DConfig& config)
-    : device_   (device)
-    , config_   (config)
-    , frame_    (device)
-    , queue_    (config.reserve_arena_bytes, config.reserve_commands)
-    , stream_   (device, config.stream_chunk_size)
-    , materials_(device)
-    , shaders_  (device)
-    , kinds_    (device)
+Renderer2D::Renderer2D(RenderCore& core, const Renderer2DConfig& config)
+    : core_  (core)
+    , config_(config)
+    , queue_ (config.reserve_arena_bytes, config.reserve_commands)
+    , kinds_ (core.device())
 {
     // Setup default cameras for the default views
     views_[View::World] = cameras_.create(
@@ -38,133 +34,96 @@ Renderer2D::Renderer2D(RHI::Device& device, const Renderer2DConfig& config)
         }
     ).handle;
 
-    // Setup context
-    context_ = {
-        .device    = &device_,
-        .config    = &config_,
-        .frame     = &frame_,
-        .materials = &materials_,
-        .shaders   = &shaders_,
-        .kinds     = &kinds_,
-        .stream    = &stream_,
-        .queue     = &queue_,
-        .builder   = &builder_,
-    };
-
     // Register a kind's pipeline now instead of on its first draw time so a
     // broken shader fails early and the first frame doesn't hitch.
-    kinds_.ensure<ArrowKind            >(context_);
-    kinds_.ensure<CircleKind           >(context_);
-    kinds_.ensure<LineKind             >(context_);
-    kinds_.ensure<QuadKind             >(context_);
-    kinds_.ensure<RectangleFilledKind  >(context_);
-    kinds_.ensure<RectangleUnfilledKind>(context_);
-    kinds_.ensure<RectangleSDFKind     >(context_);
-    kinds_.ensure<SpriteKind           >(context_);
-    kinds_.ensure<TextGlyphSDFKind     >(context_);
-    kinds_.ensure<UIQuadKind           >(context_);
+    RenderContext& ctx = core_.context();
+    kinds_.ensure<ArrowKind            >(ctx);
+    kinds_.ensure<CircleKind           >(ctx);
+    kinds_.ensure<LineKind             >(ctx);
+    kinds_.ensure<QuadKind             >(ctx);
+    kinds_.ensure<RectangleFilledKind  >(ctx);
+    kinds_.ensure<RectangleUnfilledKind>(ctx);
+    kinds_.ensure<RectangleSDFKind     >(ctx);
+    kinds_.ensure<SpriteKind           >(ctx);
+    kinds_.ensure<TextGlyphSDFKind     >(ctx);
+    kinds_.ensure<UIQuadKind           >(ctx);
+
+    core_.add_feature(*this);
+}
+
+Renderer2D::~Renderer2D() {
+    core_.remove_feature(*this);
 }
 
 // -----------------------------------------------------------------------------
-// Frame Control
+// Frame Hooks
 // -----------------------------------------------------------------------------
 
-void Renderer2D::begin_frame() {
-    assert(!in_frame_ && "Renderer2D: begin_frame called twice");
+void Renderer2D::begin_frame(RenderCore& core) {
     queue_.clear();
-    stream_.reset();
-    in_frame_ = true;
+    batches_ = {};
 
     // Size and scale each view's camera to the backbuffer here as well as in
-    // end_frame, so draw code sees the real screen size on the first frame
+    // upload(), so draw code sees the real screen size on the first frame
     // (cameras start at CameraConfig::size) and the frame after a resize.
-    const RHI::Extent2D size = device_.backbuffer_extent();
+    const RHI::Extent2D size = core.device().backbuffer_extent();
     if (size.width > 0 && size.height > 0) {
         for (ViewID vid = 0; vid < VIEW_CAPACITY; vid++) {
             if (Camera2D* camera = cameras_.get(views_[vid])) {
                 camera->set_size({ float(size.width), float(size.height) });
-                camera->set_display_scale(display_scale_);
+                camera->set_display_scale(core.get_display_scale());
             }
         }
     }
 }
 
-void Renderer2D::end_frame() {
-    assert(in_frame_ && "Renderer2D: end_frame without begin_frame");
-    in_frame_ = false;
-
-    // -------------------------------------------------------------------------
-    // Step 1
-    //
-    // CPU: sort + merge + gather into the stream mirrors. Done before
-    // device_.begin_frame(), which may block on an older frame, so this work
-    // overlaps with the GPU.
-    // -------------------------------------------------------------------------
-
-    const std::span<const DrawBatch> batches = builder_.build(queue_, stream_);
-
-    // -------------------------------------------------------------------------
-    // Step 2
-    //
-    // Upload data from CPU to the device. Inside the device frame, writes are
-    // staged and all land before any of this frame's commands run.
-    // -------------------------------------------------------------------------
-
-    RHI::CommandEncoder& encoder = device_.begin_frame();
-
-    // Every view with a live camera: size it to the backbuffer and upload its
-    // matrix to the view's slot (each slot is its own byte range).
-    const RHI::Extent2D size = device_.backbuffer_extent();
-    for (ViewID vid = 0; vid < VIEW_CAPACITY; vid++) {
-        if (Camera2D* camera = cameras_.get(views_[vid])) {
-            camera->set_size({ float(size.width), float(size.height) });
-            camera->set_display_scale(display_scale_);
-            frame_.update(vid, camera->get_vp());
-        }
-    }
-
-    stream_.flush();
-
-    // -------------------------------------------------------------------------
-    // Step 3
-    //
-    // Record and execute commands on the device.
-    // -------------------------------------------------------------------------
-
-    const RHI::ColorAttachment clear_color_attachment[] = {{
-        .texture     = device_.backbuffer(),
-        .load_op     = RHI::LoadOp::Clear,
-        .store_op    = RHI::StoreOp::Store,
-        .clear_color = config_.clear_color,
-    }};
-
-    encoder.begin_render_pass(
-        RHI::RenderPassConfig{
-            .name              = "main",
-            .color_attachments = clear_color_attachment,
-        }
-    );
+void Renderer2D::prepare(RenderCore& core) {
+    // CPU: sort + merge + gather into the stream mirrors.
+    batches_ = builder_.build(queue_, core.stream());
 
     stats_.pipeline_switches = 0;
     stats_.material_switches = 0;
     stats_.view_switches     = 0;
     stats_.dropped           = 0;
+}
 
+void Renderer2D::upload(RenderCore& core) {
+    // Every view with a live camera: size it to the backbuffer (final size
+    // for this frame, now that the device frame has begun) and publish its
+    // matrices to the view's slot.
+    const RHI::Extent2D size = core.device().backbuffer_extent();
+    for (ViewID vid = 0; vid < VIEW_CAPACITY; vid++) {
+        if (Camera2D* camera = cameras_.get(views_[vid])) {
+            camera->set_size({ float(size.width), float(size.height) });
+            camera->set_display_scale(core.get_display_scale());
+            core.set_view(vid, camera->get_view_data());
+        }
+    }
+}
+
+void Renderer2D::record(
+    RenderCore&          core,
+    RHI::CommandEncoder& encoder,
+    ViewMask             views)
+{
     ViewID     bound_view     = 0xFF; // nothing bound yet
     bool       have_kind      = false;
     KindID     bound_kind     = 0;
     MaterialID bound_material = Material::None;
 
-    for (const DrawBatch& batch : batches) {
+    for (const DrawBatch& batch : batches_) {
 
-        // Resolve batch view change. Batches arrive grouped by view (its bits
-        // lead the sort key), so this binds group 0 once per view per frame.
+        // Skip views this pass doesn't record. Batches arrive grouped by view
+        // (its bits lead the sort key).
+        if (!(views & view_bit(batch.view))) continue;
+
+        // Resolve batch view change: binds group 0 once per view per pass.
         if (batch.view != bound_view) {
             if (!cameras_.get(views_[batch.view])) { // view lost its camera
                 stats_.dropped += batch.instance_count;
                 continue;
             }
-            frame_.bind(encoder, batch.view);
+            core.views().bind(encoder, batch.view);
             bound_view     = batch.view;
             bound_material = Material::None; // cheap insurance: rebind group 1 too
             stats_.view_switches++;
@@ -194,7 +153,7 @@ void Renderer2D::end_frame() {
 
         // Resolve batch material change
         if (batch.material != bound_material && batch.material != Material::None) {
-            materials_.bind(encoder, batch.material);
+            core.materials().bind(encoder, batch.material);
             bound_material = batch.material;
             stats_.material_switches++;
         }
@@ -207,22 +166,15 @@ void Renderer2D::end_frame() {
 
         encoder.draw(kind.vertex_count, batch.instance_count);
     }
+}
 
-    encoder.end_render_pass();
-    device_.end_frame();
-
-    // -------------------------------------------------------------------------
-    // Step 4
-    //
-    // Record frame statistics.
-    // -------------------------------------------------------------------------
-
+void Renderer2D::finish(RenderCore& core) {
     const BatchBuilder::Stats& b = builder_.stats();
     stats_.objects       = b.objects;
     stats_.draw_calls    = b.batches;
-    stats_.dropped      += b.dropped; // + draws to views without a camera (above)
-    stats_.stream_bytes  = stream_.bytes_used();
-    stats_.stream_chunks = stream_.chunk_count();
+    stats_.dropped      += b.dropped; // + draws to views without a camera (record)
+    stats_.stream_bytes  = core.stream().bytes_used();
+    stats_.stream_chunks = core.stream().chunk_count();
 }
 
 // -----------------------------------------------------------------------------
@@ -230,7 +182,7 @@ void Renderer2D::end_frame() {
 // -----------------------------------------------------------------------------
 
 SlotMap<Atlas>::Pair Renderer2D::create_atlas(const AtlasConfig& config) {
-    return atlases_.create(context_, config);
+    return atlases_.create(core_.context(), config);
 }
 
 SlotMap<Camera2D>::Pair Renderer2D::create_camera(const CameraConfig& config) {
@@ -238,7 +190,7 @@ SlotMap<Camera2D>::Pair Renderer2D::create_camera(const CameraConfig& config) {
 }
 
 SlotMap<Font>::Pair Renderer2D::create_font(const FontConfig& config) {
-    return fonts_.create(context_, config);
+    return fonts_.create(core_.context(), config);
 }
 
 // -----------------------------------------------------------------------------

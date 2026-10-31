@@ -185,7 +185,7 @@ public:
 
     void on_init(Nezumi::Engine& engine) override {
         Nezumi::World&    world    = engine.world();
-        Render::Renderer2D* renderer = engine.renderer();
+        Render::Renderer2D* renderer = engine.renderer2d();
 
         // Bindings. A settings screen would change these at runtime.
         InputMap& input = engine.input();
@@ -299,7 +299,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_draw(Nezumi::Engine& engine) override {
-        Render::Renderer2D* r = engine.renderer();
+        Render::Renderer2D* r = engine.renderer2d();
 
         // Per frame: the camera is presentation, not simulation
         const Walker* walker = engine.world().get_entity_as<Walker>(walker_);

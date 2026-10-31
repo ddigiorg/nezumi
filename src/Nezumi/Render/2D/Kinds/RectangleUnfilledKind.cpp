@@ -68,7 +68,7 @@ RHI::RenderPipelineHandle RectangleUnfilledKind::make_pipeline(const RenderConte
 
     // Setup bind group layouts
     const std::array<RHI::BindGroupLayoutHandle, 1> bind_group_layouts = {
-        ctx.frame->layout(),
+        ctx.views->layout(),
     };
 
     // Setup primitive

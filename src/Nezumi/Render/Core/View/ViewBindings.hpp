@@ -17,6 +17,7 @@
 // =============================================================================
 
 #pragma once
+#include "Nezumi/Render/Core/View/ViewData.hpp"
 #include "Nezumi/Render/Core/View/ViewID.hpp"
 #include "Nezumi/RHI/RHI.hpp"
 #include <cstdint>     // uint32_t
@@ -31,7 +32,7 @@ public:
     // Statics
     // -------------------------------------------------------------------------
 
-    static constexpr std::uint32_t FRAME_GROUP = 0;
+    static constexpr std::uint32_t VIEW_GROUP  = 0;
     static constexpr std::uint32_t MAX_VIEWS   = VIEW_CAPACITY; // one slot per possible ViewID
 
     // -------------------------------------------------------------------------
@@ -52,8 +53,9 @@ public:
     // Usage
     // -------------------------------------------------------------------------
 
-    // Upload one view's uniforms. Once per view per frame.
-    void update(ViewID view, const glm::mat4& view_proj);
+    // Upload one view's uniforms. Once per view per frame (RenderCore does
+    // this for every view published with set_view()).
+    void update(ViewID view, const ViewData& data);
 
     // Bind at GROUP with the view's slot selected. Call before the first draw
     // of each view.

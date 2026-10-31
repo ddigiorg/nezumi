@@ -201,7 +201,7 @@ public:
 
     void on_init(Nezumi::Engine& engine) override {
         Nezumi::World&    world    = engine.world();
-        Render::Renderer2D* renderer = engine.renderer();
+        Render::Renderer2D* renderer = engine.renderer2d();
 
         // Setup cameras
         world_camera_  = renderer->get_view_camera(Render::View::World );
@@ -315,7 +315,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_draw(Nezumi::Engine& engine) override {
-        Render::Renderer2D* r = engine.renderer();
+        Render::Renderer2D* r = engine.renderer2d();
 
         camera_controller_->update(engine.clock().get_real_dt());
 

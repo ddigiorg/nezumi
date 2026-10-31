@@ -12,7 +12,7 @@
 // by text size / pixel_size; see Text.hpp.
 //
 // Lifetime: a Font owns its material and frees it on destruction. Destroy
-// fonts before the Renderer2D that owns the MaterialTable. FreeType is only
+// fonts before the RenderCore that owns the MaterialTable. FreeType is only
 // used inside the constructor; nothing FreeType leaks into this header.
 // =============================================================================
 

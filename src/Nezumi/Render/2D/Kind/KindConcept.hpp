@@ -7,7 +7,7 @@
 // Pipeline contract (every kind):
 //   - vertex buffer 0: the unit shape, VertexStepMode::Vertex
 //   - vertex buffer 1: Instance, VertexStepMode::Instance, stride sizeof(Instance)
-//   - bind group 0:    ctx.frame_layout (camera)
+//   - bind group 0:    ctx.views->layout() (per-view uniforms)
 //   - bind group 1:    material, for textured kinds (later)
 // =============================================================================
 

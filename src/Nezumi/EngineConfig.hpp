@@ -8,6 +8,7 @@
 #include "Nezumi/Core/WindowConfig.hpp"
 #include "Nezumi/Logger/LoggerConfig.hpp"
 #include "Nezumi/Render/2D/Renderer2DConfig.hpp"
+#include "Nezumi/Render/Core/RenderCoreConfig.hpp"
 #include "Nezumi/RHI/DeviceConfig.hpp"
 #include "Nezumi/UI/UIConfig.hpp"
 #include "Nezumi/World/WorldConfig.hpp"
@@ -15,7 +16,8 @@
 namespace Nezumi {
 
 struct EngineConfig {
-    bool enable_graphics = true;
+    bool enable_graphics   = true;
+    bool enable_renderer2d = true; // Renderer2D and the UI (needs graphics)
     bool enable_debug    = true;
     bool escape_exits    = false;
 
@@ -38,9 +40,11 @@ struct EngineConfig {
         .seed = 0,
     };
 
-    Render::Renderer2DConfig renderer = {
+    Render::RenderCoreConfig render = {
         .clear_color = { 0.0f, 0.0f, 0.0f, 1.0f },
     };
+
+    Render::Renderer2DConfig renderer2d = {};
 
     RHI::DeviceConfig device = {
         .name = "Game Device",

@@ -1,12 +1,12 @@
 // =============================================================================
 // CameraController.hpp
 //
-// Moves a Render::Camera2D from user input: key pan, edge pan, mouse drag pan and
-// mouse wheel zoom (optionally toward the cursor), or follows a target.
+// Moves a Render::Camera2D from user input: key pan, edge pan, mouse drag pan
+// and mouse wheel zoom (optionally toward the cursor), or follows a target.
 //
 // Key pan reads the pan actions named in the config from the InputMap, so the
 // game decides which keys pan (if any). Mouse input arrives as events, which
-// only record state (cursor position, drag button). Camera2D movement that
+// only record state (cursor position, drag button). Camera movement that
 // depends on time happens in update(), which the game calls once per frame
 // with the real frame delta:
 //
@@ -62,8 +62,8 @@ public:
     CameraController(
         EventBus&                     events,
         const InputMap&               input,
-        Render::Renderer2D&             renderer,
-        Handle<Render::Camera2D>        camera,
+        Render::Renderer2D&           renderer,
+        Handle<Render::Camera2D>      camera,
         const CameraControllerConfig& config = {}
     );
 
@@ -113,7 +113,7 @@ public:
     // Getters
     // -------------------------------------------------------------------------
 
-    Handle<Render::Camera2D>        get_camera () const { return camera_;         }
+    Handle<Render::Camera2D>      get_camera () const { return camera_;         }
     const CameraControllerConfig& get_config () const { return config_;         }
     bool                          is_enabled () const { return config_.enabled; }
     bool                          is_dragging() const { return is_dragging_;    }

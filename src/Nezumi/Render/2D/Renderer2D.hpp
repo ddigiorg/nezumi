@@ -1,8 +1,20 @@
 // =============================================================================
 // Renderer2D.hpp
 //
-// Engine rendering subsystem. Collects draws in any order during the frame;
-// then sorts, batches, uploads, and records them at the end of the frame.
+// The batched 2D feature renderer: sprites, shapes and SDF text. Collects
+// draws in any order during the frame; then sorts, batches, uploads, and
+// records them when RenderCore ends the frame.
+//
+// It is one IRenderFeature of RenderCore. RenderCore owns the frame and the
+// passes (FrameRecipe); Renderer2D records its batches into whichever passes
+// list it, limited to each pass's views. It never begins a pass or clears.
+//
+//   RenderCore core(device);
+//   Renderer2D r2d(core);  // registers itself with core
+//
+// Shared services (materials, shaders, the instance stream, the per-view
+// uniforms) belong to RenderCore, so another feature (e.g. a mesh renderer)
+// can use the same atlases' materials and views.
 //
 // ## Features
 //
@@ -39,9 +51,9 @@
 //   - Per-view matrices live in one uniform buffer, selected with a dynamic
 //     offset: one group-0 bind per view per frame.
 //   - Camera2D origins: Centered (world) and BottomLeft (screen); both keep y up.
-//   - Projection (top-down or 2:1 isometric) maps world to view space on
-//     the CPU, before submission; cameras and kinds only see view space.
-//     Quad draws square textures as projected diamonds.
+//   - World/Projection.hpp (top-down or 2:1 isometric) maps world to view
+//     space on the CPU, before submission; cameras and kinds only see view
+//     space. Quad draws square textures as projected diamonds.
 //
 // Materials & resources
 //
@@ -88,11 +100,11 @@
 #include "Nezumi/Render/2D/Atlas/Atlas.hpp"
 #include "Nezumi/Render/2D/Atlas/AtlasConfig.hpp"
 #include "Nezumi/Render/2D/Batch/BatchBuilder.hpp"
-#include "Nezumi/Render/Core/Frame/CommandQueue.hpp"
-#include "Nezumi/Render/Core/View/ViewBindings.hpp"
-#include "Nezumi/Render/Core/Frame/Sort.hpp"
 #include "Nezumi/Render/2D/Batch/SortKey.hpp"
-#include "Nezumi/Render/Core/Frame/StreamBuffer.hpp"
+#include "Nezumi/Render/2D/Camera/Camera2D.hpp"
+#include "Nezumi/Render/2D/Camera/CameraConfig.hpp"
+#include "Nezumi/Render/2D/Camera/CameraOrigin.hpp"
+#include "Nezumi/Render/2D/DrawParams.hpp"
 #include "Nezumi/Render/2D/Kind/KindConcept.hpp"
 #include "Nezumi/Render/2D/Kind/KindID.hpp"
 #include "Nezumi/Render/2D/Kind/KindRegistry.hpp"
@@ -115,33 +127,30 @@
 #include "Nezumi/Render/2D/Kinds/TextGlyphSDFKind.hpp"
 #include "Nezumi/Render/2D/Kinds/UIQuad.hpp"
 #include "Nezumi/Render/2D/Kinds/UIQuadKind.hpp"
+#include "Nezumi/Render/2D/Renderer2DConfig.hpp"
+#include "Nezumi/Render/Core/Frame/CommandQueue.hpp"
+#include "Nezumi/Render/Core/Frame/IRenderFeature.hpp"
 #include "Nezumi/Render/Core/Material/MaterialID.hpp"
-#include "Nezumi/Render/Core/Material/MaterialTable.hpp"
-#include "Nezumi/Render/Core/Shader/ShaderLibrary.hpp"
+#include "Nezumi/Render/Core/RenderCore.hpp"
 #include "Nezumi/Render/Core/Text/Font.hpp"
 #include "Nezumi/Render/Core/Text/FontConfig.hpp"
 #include "Nezumi/Render/Core/Text/Text.hpp"
-#include "Nezumi/Render/2D/DrawParams.hpp"
-#include "Nezumi/Render/2D/Renderer2DConfig.hpp"
-#include "Nezumi/Render/Core/RenderContext.hpp"
-#include "Nezumi/Render/2D/Camera/Camera2D.hpp"
-#include "Nezumi/Render/2D/Camera/CameraConfig.hpp"
-#include "Nezumi/Render/2D/Camera/CameraOrigin.hpp"
-#include "Nezumi/World/Projection.hpp"
 #include "Nezumi/Render/Core/View/ViewID.hpp"
 #include "Nezumi/RHI/RHI.hpp"
 
 namespace Nezumi::Render {
 
-class Renderer2D {
+class Renderer2D final : public IRenderFeature {
 public:
 
     // -------------------------------------------------------------------------
     // Construction & Destruction
     // -------------------------------------------------------------------------
 
-    explicit Renderer2D(RHI::Device& device, const Renderer2DConfig& config = {});
-    ~Renderer2D() = default;
+    // Registers with `core` (core.add_feature); the destructor unregisters.
+    // Add it to a pass of core's FrameRecipe to see its draws.
+    explicit Renderer2D(RenderCore& core, const Renderer2DConfig& config = {});
+    ~Renderer2D() override;
 
     // Non-copyable and non-movable
     Renderer2D(const Renderer2D&)            = delete;
@@ -150,13 +159,18 @@ public:
     Renderer2D& operator=(Renderer2D&&)      = delete;
 
     // -------------------------------------------------------------------------
-    // Frame Control
+    // Frame Hooks (IRenderFeature)
     //
-    // All GPU work happens during end_frame().
+    // Called by RenderCore::begin_frame() and end_frame(); not by the game.
     // -------------------------------------------------------------------------
 
-    void begin_frame();
-    void end_frame();
+    std::string_view name() const override { return "renderer2d"; }
+
+    void begin_frame(RenderCore& core) override;
+    void prepare    (RenderCore& core) override;
+    void upload     (RenderCore& core) override;
+    void record     (RenderCore& core, RHI::CommandEncoder& encoder, ViewMask views) override;
+    void finish     (RenderCore& core) override;
 
     // -------------------------------------------------------------------------
     // Create
@@ -188,14 +202,14 @@ public:
     Camera2D* get_camera(Handle<Camera2D> handle);
     Font*   get_font  (Handle<Font  > handle);
 
-    RenderContext& get_context() { return context_; }
+    RenderCore& core() { return core_; }
 
     // -------------------------------------------------------------------------
     // Views
     //
     // Which camera each view draws through. Each frame, every view's camera is
-    // sized to the device's backbuffer, given the display scale, and the
-    // camera matrix is uploaded to that view's slot.
+    // sized to the device's backbuffer, given the display scale, and its
+    // matrices are published to that view's slot (RenderCore::set_view).
     //
     // Default views (made by the constructor, unless replaced):
     //
@@ -203,16 +217,15 @@ public:
     // - View::Screen: "screen-camera" (BottomLeft, 1 unit = 1 point, which is
     //                                  display_scale pixels)
     //
-    // The display scale is the screen's HiDPI factor (Window::get_display_scale,
-    // set by the Engine before each frame), so content keeps its physical size
-    // while rendering at the screen's full resolution.
+    // The display scale is the screen's HiDPI factor (RenderCore's, set by
+    // the Engine before each frame), so content keeps its physical size while
+    // rendering at the screen's full resolution.
     // -------------------------------------------------------------------------
 
-    void  set_display_scale(float scale) { display_scale_ = scale > 0.0f ? scale : 1.0f; }
-    float get_display_scale() const      { return display_scale_; }
+    float get_display_scale() const { return core_.get_display_scale(); }
 
-    void           clear_view(ViewID view);
-    void           set_view  (ViewID view, Handle<Camera2D> camera);
+    void             clear_view(ViewID view);
+    void             set_view  (ViewID view, Handle<Camera2D> camera);
     Handle<Camera2D> get_view  (ViewID view) const;
 
     // The camera a view draws through, or nullptr if it has none.
@@ -230,13 +243,13 @@ public:
         const typename K::Instance& instance,
         const DrawParams&           params = {})
     {
-        assert(in_frame_ &&
+        assert(core_.in_frame() &&
                "Renderer2D: drawing outside begin_frame and end_frame");
         assert(params.view < VIEW_CAPACITY && views_[params.view] &&
                "Renderer2D: drawing to a view with no camera (see set_view)");
         // TODO: assert instead of ensure since kinds should be registered
         //       before any frames
-        const KindID kind = kinds_.ensure<K>(context_);
+        const KindID kind = kinds_.ensure<K>(core_.context());
         queue_.push(SortKey::make(params, kind), instance);
     }
 
@@ -309,31 +322,25 @@ private:
     // Members
     // -------------------------------------------------------------------------
 
-    RHI::Device&    device_;
-    Renderer2DConfig  config_;
-    RenderContext context_;
+    RenderCore&      core_;
+    Renderer2DConfig config_;
 
     // Frame: things rebuilt every frame
-    BatchBuilder   builder_;
-    ViewBindings  frame_;
-    CommandQueue   queue_;
-    StreamBuffer   stream_;
+    BatchBuilder               builder_;
+    CommandQueue               queue_;
+    std::span<const DrawBatch> batches_; // built in prepare(), recorded in record()
 
     // Resources: long-lived GPU state
-    MaterialTable  materials_;
-    ShaderLibrary  shaders_;
-    KindRegistry   kinds_;
+    KindRegistry kinds_;
 
-    SlotMap<Atlas > atlases_;
+    SlotMap<Atlas   > atlases_;
     SlotMap<Camera2D> cameras_;
-    SlotMap<Font  > fonts_;
+    SlotMap<Font    > fonts_;
 
     std::array<Handle<Camera2D>, VIEW_CAPACITY> views_ = {};
 
     // Miscellaneous
     FrameStats stats_;
-    bool  in_frame_      = false;
-    float display_scale_ = 1.0f;
 };
 
 } // namespace Nezumi::Render

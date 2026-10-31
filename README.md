@@ -10,7 +10,10 @@
 
 - **Event System**: Time-based publish-subscribe event bus  
 - **Render Hardware Interface (RHI)**: Device abstraction layer (Backends: OpenGL; Vulkan and DX12 planned) 
-- **Renderer**: For loading graphics assets, setting up camera views, and automatically batch drawing render objects (sprites, shapes, etc.)
+- **Render**: Layered on the RHI:
+  - **Render/Core**: shared by any renderer: frame recipe (passes), views, materials, shaders, instance streaming, fonts and text layout
+  - **Render/2D**: `Renderer2D`, a feature renderer that loads atlases, sets up camera views, and automatically batch draws render objects (sprites, shapes, SDF text, etc.). On by default; opt out with `EngineConfig::enable_renderer2d`
+  - **Render/3D**: planned
 - **Controllers**: Input-driven gameplay helpers, e.g. an RTS-style camera controller (key/edge/drag pan, zoom to cursor)
 - **UI**: Immediate-mode panels (movable, resizable, scrolling) and widgets (buttons, checkboxes, toggles, sliders, text fields, dropdowns), drawn in one batch, with cursor styles and input capture
 - **Platform**: SDL3 for windowing, input, and application-level events

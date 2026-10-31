@@ -121,16 +121,16 @@ ViewBindings::~ViewBindings() {
 // Usage
 // -----------------------------------------------------------------------------
 
-void ViewBindings::update(ViewID view, const glm::mat4& view_proj) {
+void ViewBindings::update(ViewID view, const ViewData& data) {
     assert(view < MAX_VIEWS);
-    const Uniforms uniforms{ view_proj };
+    const Uniforms uniforms{ data.view_proj };
     device_.write_buffer(buffer_, std::uint64_t(view) * stride_, std::as_bytes(std::span(&uniforms, 1)));
 }
 
 void ViewBindings::bind(RHI::CommandEncoder& encoder, ViewID view) const {
     assert(view < MAX_VIEWS);
     const std::uint32_t offset = std::uint32_t(view) * stride_;
-    encoder.set_bind_group(FRAME_GROUP, group_, std::span(&offset, 1));
+    encoder.set_bind_group(VIEW_GROUP, group_, std::span(&offset, 1));
 }
 
 // -------------------------------------------------------------------------

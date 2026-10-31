@@ -12,6 +12,7 @@
 #include "Nezumi/Input/InputMap.hpp"
 #include "Nezumi/Logger/Logger.hpp"
 #include "Nezumi/Render/2D/Renderer2D.hpp"
+#include "Nezumi/Render/Core/RenderCore.hpp"
 #include "Nezumi/RHI/Device.hpp"
 #include "Nezumi/UI/Context.hpp"
 #include "Nezumi/World/World.hpp"
@@ -85,10 +86,13 @@ public:
     Stopwatch& stopwatch()  { return *stopwatch_;  }
     World&     world()      { return *world_;      }
 
-    Window*           window()   { return window_  .get(); }
-    RHI::Device*      device()   { return device_  .get(); }
-    Render::Renderer2D* renderer() { return renderer_.get(); }
-    UI::Context*      ui()       { return ui_      .get(); }
+    // Graphics (nullptr if graphics are disabled). renderer2d() and ui() are
+    // also nullptr when EngineConfig::enable_renderer2d is false.
+    Window*             window()     { return window_    .get(); }
+    RHI::Device*        device()     { return device_    .get(); }
+    Render::RenderCore* render()     { return render_    .get(); }
+    Render::Renderer2D* renderer2d() { return renderer2d_.get(); }
+    UI::Context*        ui()         { return ui_        .get(); }
 
     EngineContext& context() { return context_; }
 
@@ -131,10 +135,11 @@ private:
     std::unique_ptr<World>     world_      = nullptr;
 
     // Graphics Subsystems (absent if graphics disabled)
-    std::unique_ptr<Window          > window_   = nullptr;
-    std::unique_ptr<RHI::Device     > device_   = nullptr;
-    std::unique_ptr<Render::Renderer2D> renderer_ = nullptr;
-    std::unique_ptr<UI::Context     > ui_       = nullptr;
+    std::unique_ptr<Window            > window_     = nullptr;
+    std::unique_ptr<RHI::Device       > device_     = nullptr;
+    std::unique_ptr<Render::RenderCore> render_     = nullptr;
+    std::unique_ptr<Render::Renderer2D> renderer2d_ = nullptr; // optional
+    std::unique_ptr<UI::Context       > ui_         = nullptr; // needs renderer2d_
 
     // Miscellaneous
     EventListenerID on_exit_   = {};

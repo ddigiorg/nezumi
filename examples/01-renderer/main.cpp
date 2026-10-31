@@ -125,7 +125,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_init(Engine& engine) override {
-        Render::Renderer2D* r = engine.renderer();
+        Render::Renderer2D* r = engine.renderer2d();
 
         // The renderer makes a camera for each default view: View::World
         // (centered on the origin) and View::Screen (pixels, origin
@@ -188,7 +188,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_draw(Engine& engine) override {
-        Render::Renderer2D* r = engine.renderer();
+        Render::Renderer2D* r = engine.renderer2d();
 
         // Per frame, not per tick: the camera is presentation, not simulation
         camera_controller_->update(engine.clock().get_real_dt());

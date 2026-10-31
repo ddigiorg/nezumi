@@ -70,7 +70,7 @@ RHI::RenderPipelineHandle TextGlyphSDFKind::make_pipeline(const RenderContext& c
 
     // Setup bind group layouts
     const std::array<RHI::BindGroupLayoutHandle, 2> bind_group_layouts = {
-        ctx.frame->layout(),
+        ctx.views->layout(),
         ctx.materials->layout(),
     };
 

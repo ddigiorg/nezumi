@@ -90,7 +90,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_init(Engine& engine) override {
-        Render::Renderer2D* renderer = engine.renderer();
+        Render::Renderer2D* renderer = engine.renderer2d();
 
         engine.input().bind(Action::PlaceMarker, MouseButton::Left);
         engine.input().bind(Action::ShowPanels,  ScanCode::F1);
@@ -151,7 +151,7 @@ public:
     void on_draw(Engine& engine) override {
         camera_controller_->update(engine.clock().get_real_dt());
 
-        draw_world_(*engine.renderer());
+        draw_world_(*engine.renderer2d());
 
         UI::Context& ui = *engine.ui();
         draw_widgets_panel_(ui);
@@ -351,7 +351,7 @@ private:
         // Stats are for the last completed frame. The UI is one draw call per
         // texture run (see UIQuad.hpp): text, then the slot icons, then text
         // again, so the count barely moves as panels open.
-        const Render::Renderer2D::FrameStats& stats = engine.renderer()->stats();
+        const Render::Renderer2D::FrameStats& stats = engine.renderer2d()->stats();
 
         char text[200];
         std::snprintf(text, sizeof text,
@@ -360,7 +360,7 @@ private:
             ui.wants_mouse() ? "yes" : "no", ui.wants_keyboard() ? "yes" : "no",
             markers_.size(), stats.draw_calls, stats.objects);
 
-        engine.renderer()->draw_text(
+        engine.renderer2d()->draw_text(
             text, { 12.0f, 12.0f }, *ui.font(),
             Render::TextStyle{
                 .size          = 15.0f,
