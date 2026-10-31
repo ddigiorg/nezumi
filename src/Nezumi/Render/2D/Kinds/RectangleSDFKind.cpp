@@ -4,8 +4,8 @@
 
 #include "Nezumi/Render/2D/Kinds/RectangleSDFKind.hpp"
 
-#include "Nezumi/Render/Core/View/ViewBindings.hpp"
 #include "Nezumi/Render/Core/Shader/ShaderLibrary.hpp"
+#include "Nezumi/Render/Core/View/ViewBindings.hpp"
 #include "Nezumi/RHI/Device.hpp"
 #include <cstddef> // offsetof
 

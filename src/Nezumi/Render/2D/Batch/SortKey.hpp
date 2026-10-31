@@ -21,8 +21,8 @@
 
 #pragma once
 #include "Nezumi/Render/2D/Kind/KindID.hpp"
-#include "Nezumi/Render/Core/Material/MaterialID.hpp"
 #include "Nezumi/Render/2D/DrawParams.hpp"
+#include "Nezumi/Render/Core/Material/MaterialID.hpp"
 #include <algorithm> // clamp
 #include <cstdint>   // uint32_t, uint64_t
 

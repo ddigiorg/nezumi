@@ -9,8 +9,8 @@
 #include "Nezumi/Input/Events/OnMouseMotion.hpp"
 #include "Nezumi/Input/Events/OnMouseWheel.hpp"
 #include "Nezumi/Input/InputMap.hpp"
-#include "Nezumi/Render/2D/Renderer2D.hpp"
 #include "Nezumi/Render/2D/Camera/Camera2D.hpp"
+#include "Nezumi/Render/2D/Renderer2D.hpp"
 #include <algorithm> // clamp, max, min
 #include <cassert>   // assert
 #include <cmath>     // abs, exp, pow

@@ -3,8 +3,8 @@
 // =============================================================================
 
 #include "Nezumi/Render/2D/Batch/BatchBuilder.hpp"
-#include "Nezumi/Render/Core/Frame/Sort.hpp"
 #include "Nezumi/Render/2D/Batch/SortKey.hpp"
+#include "Nezumi/Render/Core/Frame/Sort.hpp"
 #include <cassert> // assert
 #include <cstring> // memcpy
 
