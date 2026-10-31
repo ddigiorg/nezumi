@@ -169,30 +169,6 @@ target_link_libraries(nezumi_render
 )
 
 # ------------------------------------------------------------------------------
-# World
-# ------------------------------------------------------------------------------
-
-add_library(nezumi_world STATIC
-    Nezumi/World/Chunk/Chunk.cpp
-    Nezumi/World/Entities/Unit.cpp
-    Nezumi/World/Entities/UnitGroup.cpp
-    Nezumi/World/Physics/Sector.cpp
-    Nezumi/World/Surface/Surface.cpp
-    Nezumi/World/World.cpp
-)
-
-target_compile_features(nezumi_world PUBLIC cxx_std_20)
-target_include_directories(nezumi_world PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(nezumi_world PRIVATE ${NEZUMI_WARNINGS})
-
-target_link_libraries(nezumi_world
-    PUBLIC
-        nezumi_core
-        nezumi_logger
-        glm::glm
-)
-
-# ------------------------------------------------------------------------------
 # Control
 #
 # Gameplay-facing controllers that turn input into actions on other subsystems
@@ -262,7 +238,6 @@ target_link_libraries(nezumi_engine
         nezumi_rhi
         nezumi_render
         nezumi_ui
-        nezumi_world
 )
 
 # The name games link against

@@ -42,8 +42,4 @@ endfunction()
 
 add_example(00-hello-world)
 add_example(01-renderer)
-add_example(02-world)
-add_example(03-unit-combat)
-add_example(04-unit-group-combat)
-add_example(05-input-follow)
 add_example(06-ui)

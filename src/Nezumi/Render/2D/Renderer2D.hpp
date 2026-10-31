@@ -51,8 +51,8 @@
 //   - Per-view matrices live in one uniform buffer, selected with a dynamic
 //     offset: one group-0 bind per view per frame.
 //   - Camera2D origins: Centered (world) and BottomLeft (screen); both keep y up.
-//   - World/Projection.hpp (top-down or 2:1 isometric) maps world to view
-//     space on the CPU, before submission; cameras and kinds only see view
+//   - A game-side projection (e.g. top-down or 2:1 isometric) maps world to
+//     view space on the CPU, before submission; cameras and kinds only see view
 //     space. Quad draws square textures as projected diamonds.
 //
 // Materials & resources

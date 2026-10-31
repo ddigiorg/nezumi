@@ -11,7 +11,6 @@
 #include "Nezumi/Render/Core/RenderCoreConfig.hpp"
 #include "Nezumi/RHI/DeviceConfig.hpp"
 #include "Nezumi/UI/UIConfig.hpp"
-#include "Nezumi/World/WorldConfig.hpp"
 
 namespace Nezumi {
 
@@ -64,11 +63,6 @@ struct EngineConfig {
         .min_width  = 320,
         .min_height = 200,
         .mouse_grab = false, // TODO: should default true?
-    };
-
-    WorldConfig world = {
-        .seed = 0u,
-        .sector_sweep_interval = 600u, // 10 s at 60 UPS
     };
 };
 

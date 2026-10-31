@@ -44,7 +44,6 @@ Engine::Engine(const EngineConfig& config)
         .logger     = logger_    .get(),
         .random     = random_    .get(),
         .stopwatch  = stopwatch_ .get(),
-        .world      = world_     .get(),
         .device     = device_    .get(),
         .window     = window_    .get(),
         .render     = render_    .get(),
@@ -119,11 +118,6 @@ void Engine::setup_subsystems_() {
     statswatch_ = std::make_unique<Stopwatch>();
     if (!statswatch_)
         throw std::runtime_error("Failed to create Stopwatch");
-
-    // Create World2D
-    world_ = std::make_unique<World>(*clock_, *event_bus_, config_.world);
-    if (!world_)
-        throw std::runtime_error("Failed to create World");
 }
 
 void Engine::setup_graphics_subsystems_() {
@@ -232,11 +226,9 @@ void Engine::run_tick_(IApplication& app) {
     // on_tick has seen this tick's presses and releases
     input_->clear_edges();
 
-    world_->tick();
-
     // TODO: app.on_tick_post(*this);
 
-    event_bus_->flush(EventPhase::TickPost, world_->get_tick());
+    event_bus_->flush(EventPhase::TickPost, clock_->get_tick());
 
     event_bus_->dispatch(OnGameTicked{});
 
