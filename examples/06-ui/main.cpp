@@ -90,7 +90,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_init(Engine& engine) override {
-        Render::Renderer* renderer = engine.renderer();
+        Render::Renderer2D* renderer = engine.renderer();
 
         engine.input().bind(Action::PlaceMarker, MouseButton::Left);
         engine.input().bind(Action::ShowPanels,  ScanCode::F1);
@@ -351,7 +351,7 @@ private:
         // Stats are for the last completed frame. The UI is one draw call per
         // texture run (see UIQuad.hpp): text, then the slot icons, then text
         // again, so the count barely moves as panels open.
-        const Render::Renderer::FrameStats& stats = engine.renderer()->stats();
+        const Render::Renderer2D::FrameStats& stats = engine.renderer()->stats();
 
         char text[200];
         std::snprintf(text, sizeof text,
@@ -376,7 +376,7 @@ private:
     // World
     // -------------------------------------------------------------------------
 
-    void draw_world_(Render::Renderer& r) {
+    void draw_world_(Render::Renderer2D& r) {
         const glm::vec4 color = COLORS[static_cast<std::size_t>(color_)];
 
         if (show_squares_) {
@@ -402,7 +402,7 @@ private:
     // Members
     // -------------------------------------------------------------------------
 
-    Render::Camera*                   world_camera_      = nullptr;
+    Render::Camera2D*                   world_camera_      = nullptr;
     std::unique_ptr<CameraController> camera_controller_ = nullptr;
 
     // Panel visibility

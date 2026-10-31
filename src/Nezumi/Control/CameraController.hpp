@@ -1,12 +1,12 @@
 // =============================================================================
 // CameraController.hpp
 //
-// Moves a Render::Camera from user input: key pan, edge pan, mouse drag pan and
+// Moves a Render::Camera2D from user input: key pan, edge pan, mouse drag pan and
 // mouse wheel zoom (optionally toward the cursor), or follows a target.
 //
 // Key pan reads the pan actions named in the config from the InputMap, so the
 // game decides which keys pan (if any). Mouse input arrives as events, which
-// only record state (cursor position, drag button). Camera movement that
+// only record state (cursor position, drag button). Camera2D movement that
 // depends on time happens in update(), which the game calls once per frame
 // with the real frame delta:
 //
@@ -48,8 +48,8 @@ class EventBus;
 class InputMap;
 
 namespace Render {
-    class Camera;
-    class Renderer;
+    class Camera2D;
+    class Renderer2D;
 }
 
 class CameraController {
@@ -62,8 +62,8 @@ public:
     CameraController(
         EventBus&                     events,
         const InputMap&               input,
-        Render::Renderer&             renderer,
-        Handle<Render::Camera>        camera,
+        Render::Renderer2D&             renderer,
+        Handle<Render::Camera2D>        camera,
         const CameraControllerConfig& config = {}
     );
 
@@ -88,7 +88,7 @@ public:
     // Setters
     // -------------------------------------------------------------------------
 
-    void set_camera(Handle<Render::Camera> camera) { camera_ = camera; }
+    void set_camera(Handle<Render::Camera2D> camera) { camera_ = camera; }
 
     void set_enabled          (bool set);
     void set_enable_key_pan   (bool set) { config_.enable_key_pan    = set; }
@@ -113,7 +113,7 @@ public:
     // Getters
     // -------------------------------------------------------------------------
 
-    Handle<Render::Camera>        get_camera () const { return camera_;         }
+    Handle<Render::Camera2D>        get_camera () const { return camera_;         }
     const CameraControllerConfig& get_config () const { return config_;         }
     bool                          is_enabled () const { return config_.enabled; }
     bool                          is_dragging() const { return is_dragging_;    }
@@ -124,14 +124,14 @@ private:
     // Helpers
     // -------------------------------------------------------------------------
 
-    Render::Camera* get_camera_() const;
+    Render::Camera2D* get_camera_() const;
 
     void subscribe_();
     void zoom_(float notches);
-    void follow_(Render::Camera& camera, float dt);
+    void follow_(Render::Camera2D& camera, float dt);
 
     glm::vec2 key_dir_ () const;
-    glm::vec2 edge_dir_(const Render::Camera& camera) const;
+    glm::vec2 edge_dir_(const Render::Camera2D& camera) const;
 
     // -------------------------------------------------------------------------
     // Members
@@ -145,11 +145,11 @@ private:
     bool      is_following_  = false;
 
     CameraControllerConfig config_;
-    Handle<Render::Camera> camera_ = {};
+    Handle<Render::Camera2D> camera_ = {};
 
     EventBus&         events_;
     const InputMap&   input_;
-    Render::Renderer& renderer_;
+    Render::Renderer2D& renderer_;
 
     std::array<EventListenerID, 4> listeners_ = {};
 };

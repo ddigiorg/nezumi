@@ -14,7 +14,7 @@ class Window;
 class World;
 
 namespace Render {
-    class Renderer;
+    class Renderer2D;
 }
 
 namespace RHI {
@@ -42,7 +42,7 @@ public:
     // Graphics Subsystems (absent if graphics disabled)
     RHI::Device*      device   = nullptr;
     Window*           window   = nullptr;
-    Render::Renderer* renderer = nullptr;
+    Render::Renderer2D* renderer = nullptr;
     UI::Context*      ui       = nullptr;
 };
 

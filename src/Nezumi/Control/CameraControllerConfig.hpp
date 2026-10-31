@@ -3,11 +3,11 @@
 //
 // Config of a camera controller.
 //
-// Speeds are in screen pixels: Camera::translate converts them to world units
+// Speeds are in screen pixels: Camera2D::translate converts them to world units
 // (dividing by pixels_per_unit * zoom), so panning feels the same at every zoom
 // level and for any world unit size.
 //
-// Zoom values are Camera zoom factors, relative to the camera's
+// Zoom values are Camera2D zoom factors, relative to the camera's
 // pixels_per_unit: with 32 px per tile, zoom_min = 0.25 means 8 px tiles.
 //
 // Key pan reads four game-defined actions from the InputMap. Left unset (the

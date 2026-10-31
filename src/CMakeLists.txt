@@ -130,26 +130,26 @@ target_link_libraries(nezumi_rhi
 # ------------------------------------------------------------------------------
 
 add_library(nezumi_render STATIC
-    Nezumi/Render/Atlas/Atlas.cpp
-    Nezumi/Render/Atlas/Image.cpp
-    Nezumi/Render/Frame/BatchBuilder.cpp
-    Nezumi/Render/Frame/FrameBindings.cpp
-    Nezumi/Render/Frame/StreamBuffer.cpp
-    Nezumi/Render/Kinds/ArrowKind.cpp
-    Nezumi/Render/Kinds/CircleKind.cpp
-    Nezumi/Render/Kinds/LineKind.cpp
-    Nezumi/Render/Kinds/QuadKind.cpp
-    Nezumi/Render/Kinds/RectangleFilledKind.cpp
-    Nezumi/Render/Kinds/RectangleUnfilledKind.cpp
-    Nezumi/Render/Kinds/RectangleSDFKind.cpp
-    Nezumi/Render/Kinds/SpriteKind.cpp
-    Nezumi/Render/Kinds/TextGlyphSDFKind.cpp
-    Nezumi/Render/Kinds/UIQuadKind.cpp
-    Nezumi/Render/Material/MaterialTable.cpp
-    Nezumi/Render/Shader/ShaderLibrary.cpp
-    Nezumi/Render/Text/Font.cpp
-    Nezumi/Render/View/Camera.cpp
-    Nezumi/Render/Renderer.cpp
+    Nezumi/Render/2D/Atlas/Atlas.cpp
+    Nezumi/Render/Core/Image/Image.cpp
+    Nezumi/Render/2D/Batch/BatchBuilder.cpp
+    Nezumi/Render/Core/View/ViewBindings.cpp
+    Nezumi/Render/Core/Frame/StreamBuffer.cpp
+    Nezumi/Render/2D/Kinds/ArrowKind.cpp
+    Nezumi/Render/2D/Kinds/CircleKind.cpp
+    Nezumi/Render/2D/Kinds/LineKind.cpp
+    Nezumi/Render/2D/Kinds/QuadKind.cpp
+    Nezumi/Render/2D/Kinds/RectangleFilledKind.cpp
+    Nezumi/Render/2D/Kinds/RectangleUnfilledKind.cpp
+    Nezumi/Render/2D/Kinds/RectangleSDFKind.cpp
+    Nezumi/Render/2D/Kinds/SpriteKind.cpp
+    Nezumi/Render/2D/Kinds/TextGlyphSDFKind.cpp
+    Nezumi/Render/2D/Kinds/UIQuadKind.cpp
+    Nezumi/Render/Core/Material/MaterialTable.cpp
+    Nezumi/Render/Core/Shader/ShaderLibrary.cpp
+    Nezumi/Render/Core/Text/Font.cpp
+    Nezumi/Render/2D/Camera/Camera2D.cpp
+    Nezumi/Render/2D/Renderer2D.cpp
 )
 
 target_compile_features(nezumi_render PUBLIC cxx_std_20)

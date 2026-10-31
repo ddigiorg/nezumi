@@ -105,7 +105,7 @@
 #include "Nezumi/Event/EventListenerID.hpp"
 #include "Nezumi/Input/IInputCapture.hpp"
 #include "Nezumi/Input/ScanCode.hpp"
-#include "Nezumi/Render/Kinds/UIQuad.hpp"
+#include "Nezumi/Render/2D/Kinds/UIQuad.hpp"
 #include "Nezumi/UI/DragDrop.hpp"
 #include "Nezumi/UI/Image.hpp"
 #include "Nezumi/UI/PanelConfig.hpp"
@@ -133,7 +133,7 @@ class Window;
 
 namespace Render {
     class Font;
-    class Renderer;
+    class Renderer2D;
 }
 
 namespace UI {
@@ -153,7 +153,7 @@ public:
 
     Context(
         EventBus&         events,
-        Render::Renderer& renderer,
+        Render::Renderer2D& renderer,
         Window*           window,
         const UIConfig&   config = {});
 
@@ -371,7 +371,7 @@ public:
 
     // Screen pixels per UI unit: the display scale (1.5 at 150%). UI units
     // are points, so mouse() * scale() is the cursor in window pixels, as
-    // Camera::screen_to_world takes it.
+    // Camera2D::screen_to_world takes it.
     float             scale      () const { return scale_; }
 
     // Panel bounds as last drawn, or an empty rect if it hasn't been
@@ -545,7 +545,7 @@ private:
     // -------------------------------------------------------------------------
 
     EventBus&         events_;
-    Render::Renderer& renderer_;
+    Render::Renderer2D& renderer_;
     Window*           window_ = nullptr;
     UIConfig          config_;
     Style             style_;

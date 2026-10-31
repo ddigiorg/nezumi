@@ -7,7 +7,7 @@
 #include "Nezumi/Core/RandomConfig.hpp"
 #include "Nezumi/Core/WindowConfig.hpp"
 #include "Nezumi/Logger/LoggerConfig.hpp"
-#include "Nezumi/Render/RendererConfig.hpp"
+#include "Nezumi/Render/2D/Renderer2DConfig.hpp"
 #include "Nezumi/RHI/DeviceConfig.hpp"
 #include "Nezumi/UI/UIConfig.hpp"
 #include "Nezumi/World/WorldConfig.hpp"
@@ -38,7 +38,7 @@ struct EngineConfig {
         .seed = 0,
     };
 
-    Render::RendererConfig renderer = {
+    Render::Renderer2DConfig renderer = {
         .clear_color = { 0.0f, 0.0f, 0.0f, 1.0f },
     };
 

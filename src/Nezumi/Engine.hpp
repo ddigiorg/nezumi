@@ -11,7 +11,7 @@
 #include "Nezumi/Event/EventBus.hpp"
 #include "Nezumi/Input/InputMap.hpp"
 #include "Nezumi/Logger/Logger.hpp"
-#include "Nezumi/Render/Renderer.hpp"
+#include "Nezumi/Render/2D/Renderer2D.hpp"
 #include "Nezumi/RHI/Device.hpp"
 #include "Nezumi/UI/Context.hpp"
 #include "Nezumi/World/World.hpp"
@@ -87,7 +87,7 @@ public:
 
     Window*           window()   { return window_  .get(); }
     RHI::Device*      device()   { return device_  .get(); }
-    Render::Renderer* renderer() { return renderer_.get(); }
+    Render::Renderer2D* renderer() { return renderer_.get(); }
     UI::Context*      ui()       { return ui_      .get(); }
 
     EngineContext& context() { return context_; }
@@ -133,7 +133,7 @@ private:
     // Graphics Subsystems (absent if graphics disabled)
     std::unique_ptr<Window          > window_   = nullptr;
     std::unique_ptr<RHI::Device     > device_   = nullptr;
-    std::unique_ptr<Render::Renderer> renderer_ = nullptr;
+    std::unique_ptr<Render::Renderer2D> renderer_ = nullptr;
     std::unique_ptr<UI::Context     > ui_       = nullptr;
 
     // Miscellaneous

@@ -27,7 +27,7 @@
 #include "Nezumi/Input/Events/OnKeyDown.hpp"
 #include "Nezumi/Input/Events/OnMouseButtonDown.hpp"
 #include "Nezumi/Input/Events/OnMouseMotion.hpp"
-#include "Nezumi/Render/Kinds/Rectangle.hpp"
+#include "Nezumi/Render/2D/Kinds/Rectangle.hpp"
 #include "Nezumi/World/Entities/Unit.hpp"
 #include "Nezumi/World/Entities/UnitConfig.hpp"
 #include "Nezumi/World/Physics/Area2D.hpp"
@@ -201,7 +201,7 @@ public:
 
     void on_init(Nezumi::Engine& engine) override {
         Nezumi::World&    world    = engine.world();
-        Render::Renderer* renderer = engine.renderer();
+        Render::Renderer2D* renderer = engine.renderer();
 
         // Setup cameras
         world_camera_  = renderer->get_view_camera(Render::View::World );
@@ -315,7 +315,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_draw(Nezumi::Engine& engine) override {
-        Render::Renderer* r = engine.renderer();
+        Render::Renderer2D* r = engine.renderer();
 
         camera_controller_->update(engine.clock().get_real_dt());
 
@@ -426,7 +426,7 @@ private:
     // Draw Ground
     // -------------------------------------------------------------------------
 
-    void draw_ground_(Render::Renderer* r, const Chunk& chunk, const Area2D& view) {
+    void draw_ground_(Render::Renderer2D* r, const Chunk& chunk, const Area2D& view) {
         const Area2D& bounds = chunk.bounds();
 
         const TileCoord min = TileCoord::from_position({
@@ -464,7 +464,7 @@ private:
     // FUTURE: an Animation class picks the frame from state() and facing().
     // -------------------------------------------------------------------------
 
-    void draw_units_(Render::Renderer* r, const Chunk& chunk) {
+    void draw_units_(Render::Renderer2D* r, const Chunk& chunk) {
         Render::DrawParams params = DRAW_PARAMS_UNITS;
         params.material = atlas_->material();
 
@@ -502,7 +502,7 @@ private:
         });
     }
 
-    void draw_healthbar_(Render::Renderer* r, glm::vec2 pos, float ratio) {
+    void draw_healthbar_(Render::Renderer2D* r, glm::vec2 pos, float ratio) {
         const glm::vec4 back = glm::vec4{ pos, pos } + HEALTHBAR_BOUNDS;
 
         glm::vec4 fill = back + glm::vec4{ HEALTHBAR_BORDER, HEALTHBAR_BORDER,
@@ -532,7 +532,7 @@ private:
     // Units left per faction. FactionIndex indexes the counts directly.
     // -------------------------------------------------------------------------
 
-    void draw_hud_(Render::Renderer* r, Nezumi::Engine& engine) {
+    void draw_hud_(Render::Renderer2D* r, Nezumi::Engine& engine) {
         std::array<size_t, FACTION_COUNT> alive = {};
 
         engine.world().each_entity([&](const Nezumi::Entity& entity) {
@@ -571,8 +571,8 @@ private:
     // Members
     // -------------------------------------------------------------------------
 
-    Render::Camera* world_camera_  = nullptr;
-    Render::Camera* screen_camera_ = nullptr;
+    Render::Camera2D* world_camera_  = nullptr;
+    Render::Camera2D* screen_camera_ = nullptr;
     Render::Atlas*  atlas_         = nullptr;
     Render::Font*   font_          = nullptr;
 

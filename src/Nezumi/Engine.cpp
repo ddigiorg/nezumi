@@ -154,13 +154,13 @@ void Engine::setup_graphics_subsystems_() {
         throw std::runtime_error("Failed to create RHI::Device");
     }
 
-    // Create Renderer
-    renderer_ = std::make_unique<Render::Renderer>(
+    // Create Renderer2D
+    renderer_ = std::make_unique<Render::Renderer2D>(
         /*.device = */*device_,
         /*.config = */config_.renderer
     );
     if (!renderer_) {
-        throw std::runtime_error("Failed to create Render::Renderer");
+        throw std::runtime_error("Failed to create Render::Renderer2D");
     }
 
     // Create UI, and let it claim the mouse and keyboard from game actions
