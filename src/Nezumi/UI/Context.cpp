@@ -14,7 +14,7 @@
 #include "Nezumi/Input/Events/OnMouseMotion.hpp"
 #include "Nezumi/Input/Events/OnMouseWheel.hpp"
 #include "Nezumi/Input/Events/OnTextInput.hpp"
-#include "Nezumi/Render/Renderer.hpp"
+#include "Nezumi/Render/2D/Renderer2D.hpp"
 #include <algorithm> // clamp, find_if, max, min, rotate
 #include <chrono>    // steady_clock
 #include <cmath>     // floor, round
@@ -38,7 +38,7 @@ static constexpr Rect NO_CLIP = { { -1e9f, -1e9f }, { 1e9f, 1e9f } };
 
 Context::Context(
     EventBus&         events,
-    Render::Renderer& renderer,
+    Render::Renderer2D& renderer,
     Window*           window,
     const UIConfig&   config)
     : events_  (events)
@@ -81,7 +81,7 @@ void Context::begin_frame() {
     // Screen size and scale from the view's camera (sized to the backbuffer
     // and given the display scale by the renderer). Mouse events are window
     // pixels; the UI works in the view's units (points on HiDPI screens).
-    if (const Render::Camera* camera = renderer_.get_view_camera(config_.view)) {
+    if (const Render::Camera2D* camera = renderer_.get_view_camera(config_.view)) {
         scale_       = camera->get_scale();
         screen_size_ = camera->get_size() / scale_;
     }

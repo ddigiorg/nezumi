@@ -47,7 +47,8 @@ Engine::Engine(const EngineConfig& config)
         .world      = world_     .get(),
         .device     = device_    .get(),
         .window     = window_    .get(),
-        .renderer   = renderer_  .get(),
+        .render     = render_    .get(),
+        .renderer2d = renderer2d_.get(),
         .ui         = ui_        .get(),
     };
 
@@ -60,7 +61,8 @@ Engine::~Engine() {
 
     if (input_ && ui_) input_->set_capture(nullptr);
     if (ui_        ) ui_        .reset();
-    if (renderer_  ) renderer_  .reset();
+    if (renderer2d_) renderer2d_.reset();
+    if (render_    ) render_    .reset();
     if (device_    ) device_    .reset();
     if (window_    ) window_    .reset();
     if (stopwatch_ ) stopwatch_ .reset();
@@ -154,24 +156,43 @@ void Engine::setup_graphics_subsystems_() {
         throw std::runtime_error("Failed to create RHI::Device");
     }
 
-    // Create Renderer
-    renderer_ = std::make_unique<Render::Renderer>(
+    // Create RenderCore: shared render services, and owner of the frame
+    render_ = std::make_unique<Render::RenderCore>(
         /*.device = */*device_,
-        /*.config = */config_.renderer
+        /*.config = */config_.render
     );
-    if (!renderer_) {
-        throw std::runtime_error("Failed to create Render::Renderer");
+
+    // Default recipe: one pass that clears the backbuffer. Renderer2D (when
+    // enabled) records every view into it. Games can replace the recipe with
+    // render()->set_recipe().
+    Render::PassConfig main_pass = {
+        .name        = "main",
+        .clear       = true,
+        .clear_color = config_.render.clear_color,
+        .features    = {},
+    };
+
+    if (config_.enable_renderer2d) {
+
+        // Create Renderer2D (registers itself with render_)
+        renderer2d_ = std::make_unique<Render::Renderer2D>(
+            /*.core   = */*render_,
+            /*.config = */config_.renderer2d
+        );
+        main_pass.features.push_back({ .feature = renderer2d_.get() });
+
+        // Create UI, and let it claim the mouse and keyboard from game actions
+        // while the player uses it
+        ui_ = std::make_unique<UI::Context>(
+            /*.events   = */*event_bus_,
+            /*.renderer = */*renderer2d_,
+            /*.window   = */window_.get(),
+            /*.config   = */config_.ui
+        );
+        input_->set_capture(ui_.get());
     }
 
-    // Create UI, and let it claim the mouse and keyboard from game actions
-    // while the player uses it
-    ui_ = std::make_unique<UI::Context>(
-        /*.events   = */*event_bus_,
-        /*.renderer = */*renderer_,
-        /*.window   = */window_.get(),
-        /*.config   = */config_.ui
-    );
-    input_->set_capture(ui_.get());
+    render_->set_recipe({ .passes = { std::move(main_pass) } });
 }
 
 void Engine::setup_events_() {
@@ -227,12 +248,12 @@ void Engine::run_draw_(IApplication& app) {
     statswatch_->start();
 
     // HiDPI: draw at the screen's full resolution, scaled to keep sizes
-    if (window_) renderer_->set_display_scale(window_->get_display_scale());
-    renderer_->begin_frame();
+    if (render_ && window_) render_->set_display_scale(window_->get_display_scale());
+    if (render_) render_->begin_frame();
     if (ui_) ui_->begin_frame();
     app.on_draw(*this);
     if (ui_) ui_->end_frame();
-    renderer_->end_frame();
+    if (render_) render_->end_frame();
     event_bus_->dispatch(OnGameDrawn{});
 
     stats_.draw_ms = statswatch_->get_ms();

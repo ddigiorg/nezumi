@@ -6,7 +6,7 @@
 // =============================================================================
 
 #include "Nezumi/UI/Context.hpp"
-#include "Nezumi/Render/Text/Font.hpp"
+#include "Nezumi/Render/Core/Text/Font.hpp"
 #include <algorithm> // clamp, max, min
 #include <array>     // array
 #include <cmath>     // round

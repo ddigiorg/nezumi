@@ -9,7 +9,7 @@
 
 #include "Nezumi/Control/CameraController.hpp"
 #include "Nezumi/Engine.hpp"
-#include "Nezumi/Render/View/ViewID.hpp"
+#include "Nezumi/Render/Core/View/ViewID.hpp"
 #include <array>       // array
 #include <cmath>       // cos, sin
 #include <cstdint>     // int32_t, uint32_t
@@ -125,7 +125,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_init(Engine& engine) override {
-        Render::Renderer* r = engine.renderer();
+        Render::Renderer2D* r = engine.renderer2d();
 
         // The renderer makes a camera for each default view: View::World
         // (centered on the origin) and View::Screen (pixels, origin
@@ -188,7 +188,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_draw(Engine& engine) override {
-        Render::Renderer* r = engine.renderer();
+        Render::Renderer2D* r = engine.renderer2d();
 
         // Per frame, not per tick: the camera is presentation, not simulation
         camera_controller_->update(engine.clock().get_real_dt());
@@ -220,7 +220,7 @@ private:
     // -------------------------------------------------------------------------
 
     void draw_subtitle_(
-        Render::Renderer* r,
+        Render::Renderer2D* r,
         std::string_view  text,
         glm::vec2         position
     ) {
@@ -245,7 +245,7 @@ private:
     // Draw Menu
     // -------------------------------------------------------------------------
 
-    void draw_menu_(Render::Renderer* r) {
+    void draw_menu_(Render::Renderer2D* r) {
         static constexpr float TILE_SIZE = 32.0f;
         static constexpr float TILE_HALF = TILE_SIZE * 0.5f;
 
@@ -326,7 +326,7 @@ private:
     // color from cyan to magenta.
     // -------------------------------------------------------------------------
 
-    void draw_arrows_(Render::Renderer* r) {
+    void draw_arrows_(Render::Renderer2D* r) {
         static constexpr glm::vec2 CENTER = { -280.0f, 100.0f };
         static constexpr float     RADIUS = 40.0f;
         static constexpr int32_t   COUNT  = 8;
@@ -353,7 +353,7 @@ private:
     // Draw Circles
     // -------------------------------------------------------------------------
 
-    void draw_circles_(Render::Renderer* r) {
+    void draw_circles_(Render::Renderer2D* r) {
         static constexpr glm::vec2 CENTER = { -90.0f, 100.0f };
 
         draw_subtitle_(r, "Circles", { CENTER.x, 0.0f });
@@ -400,7 +400,7 @@ private:
     // color from cyan to magenta.
     // -------------------------------------------------------------------------
 
-    void draw_lines_(Render::Renderer* r) {
+    void draw_lines_(Render::Renderer2D* r) {
         static constexpr glm::vec2 CENTER       = { 90.0f, 100.0f };
         static constexpr float     INNER_RADIUS = 16.0f;
         static constexpr float     OUTER_RADIUS = 52.0f;
@@ -431,7 +431,7 @@ private:
     // white rectangle overlapping all four, and an outline-only frame.
     // -------------------------------------------------------------------------
 
-    void draw_rectangles_(Render::Renderer* r) {
+    void draw_rectangles_(Render::Renderer2D* r) {
         static constexpr glm::vec2 CENTER = { 280.0f, 100.0f };
         static constexpr float     SIZE   = 36.0f; // each quadrant
         static constexpr float     GAP    = 4.0f;  // half gap between quadrants
@@ -496,7 +496,7 @@ private:
     // border-only. A translucent rounded overlay sits in the middle.
     // -------------------------------------------------------------------------
 
-    void draw_sdf_rectangles_(Render::Renderer* r) {
+    void draw_sdf_rectangles_(Render::Renderer2D* r) {
         static constexpr glm::vec2 CENTER = { -250.0f, -160.0f };
         static constexpr float     HALF_W = 36.0f; // half width of each box
         static constexpr float     HALF_H = 20.0f; // half height of each box
@@ -577,7 +577,7 @@ private:
     // atlas.png) drawn three times: untinted, tinted lavender, and translucent.
     // -------------------------------------------------------------------------
 
-    void draw_sprites_(Render::Renderer* r) {
+    void draw_sprites_(Render::Renderer2D* r) {
         static constexpr glm::vec4 PIXEL_BOX = { 0.0f, 0.0f, 64.0f, 128.0f };
 
         draw_subtitle_(r, "Sprites", { 0.0f, -250.0f });
@@ -613,7 +613,7 @@ private:
     // multi-line text.
     // -------------------------------------------------------------------------
 
-    void draw_sdf_texts_(Render::Renderer* r) {
+    void draw_sdf_texts_(Render::Renderer2D* r) {
         static constexpr float LEFT_X  = 195.0f;
         static constexpr float RIGHT_X = 310.0f;
 
@@ -694,14 +694,14 @@ private:
     // Draw Stats
     //
     // Frame statistics in the top-left corner, drawn through the screen view
-    // so they stay put when the world camera moves. Renderer stats are for
+    // so they stay put when the world camera moves. Renderer2D stats are for
     // the previous frame.
     // -------------------------------------------------------------------------
 
     void draw_stats_(
-        Render::Renderer*                   r,
+        Render::Renderer2D*                   r,
         const Engine::LoopStats&            e_stats,
-        const Render::Renderer::FrameStats& r_stats
+        const Render::Renderer2D::FrameStats& r_stats
     ) {
         char text[160];
         std::snprintf(text, sizeof text,
@@ -737,8 +737,8 @@ private:
 
     // Owned by the renderer. SlotMap objects never move, so these stay valid
     // until removed, and this example never removes them.
-    Render::Camera* world_camera_  = nullptr;
-    Render::Camera* screen_camera_ = nullptr;
+    Render::Camera2D* world_camera_  = nullptr;
+    Render::Camera2D* screen_camera_ = nullptr;
     Render::Atlas*  atlas_         = nullptr;
     Render::Font*   font_          = nullptr;
 

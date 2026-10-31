@@ -9,8 +9,8 @@
 #include "Nezumi/Input/Events/OnMouseMotion.hpp"
 #include "Nezumi/Input/Events/OnMouseWheel.hpp"
 #include "Nezumi/Input/InputMap.hpp"
-#include "Nezumi/Render/Renderer.hpp"
-#include "Nezumi/Render/View/Camera.hpp"
+#include "Nezumi/Render/2D/Renderer2D.hpp"
+#include "Nezumi/Render/2D/Camera/Camera2D.hpp"
 #include <algorithm> // clamp, max, min
 #include <cassert>   // assert
 #include <cmath>     // abs, exp, pow
@@ -46,8 +46,8 @@ CameraControllerConfig sanitize_(CameraControllerConfig config) {
 CameraController::CameraController(
     EventBus&                     events,
     const InputMap&               input,
-    Render::Renderer&             renderer,
-    Handle<Render::Camera>        camera,
+    Render::Renderer2D&             renderer,
+    Handle<Render::Camera2D>        camera,
     const CameraControllerConfig& config)
         : config_  (sanitize_(config))
         , camera_  (camera)
@@ -55,7 +55,7 @@ CameraController::CameraController(
         , input_   (input)
         , renderer_(renderer)
 {
-    if (Render::Camera* c = get_camera_())
+    if (Render::Camera2D* c = get_camera_())
         c->set_zoom(config_.zoom_init);
 
     subscribe_();
@@ -73,7 +73,7 @@ CameraController::~CameraController() {
 void CameraController::update(float dt) {
     if (!config_.enabled) return;
 
-    Render::Camera* camera = get_camera_();
+    Render::Camera2D* camera = get_camera_();
     if (!camera) return;
 
     dt = std::clamp(dt, 0.0f, MAX_DT);
@@ -118,7 +118,7 @@ void CameraController::set_follow_target(glm::vec2 target, bool snap) {
     is_dragging_   = false; // a drag in progress would fight the follow
 
     if (!snap) return;
-    if (Render::Camera* camera = get_camera_())
+    if (Render::Camera2D* camera = get_camera_())
         camera->set_position(target);
 }
 
@@ -130,7 +130,7 @@ void CameraController::clear_follow_target() {
 // Helpers
 // -----------------------------------------------------------------------------
 
-Render::Camera* CameraController::get_camera_() const {
+Render::Camera2D* CameraController::get_camera_() const {
     // SlotMap handles are versioned: a removed camera resolves to nullptr
     return renderer_.get_camera(camera_);
 }
@@ -158,7 +158,7 @@ void CameraController::subscribe_() {
             has_cursor_ = true;
 
             if (!is_dragging_) return;
-            if (Render::Camera* camera = get_camera_()) {
+            if (Render::Camera2D* camera = get_camera_()) {
                 // Screen y points down and world y points up. Moving the
                 // camera opposite to the drag keeps the grabbed point under
                 // the cursor (translate converts pixels to world units).
@@ -177,7 +177,7 @@ void CameraController::subscribe_() {
 }
 
 void CameraController::zoom_(float notches) {
-    Render::Camera* camera = get_camera_();
+    Render::Camera2D* camera = get_camera_();
     if (!camera) return;
 
     const float old_zoom = camera->get_zoom();
@@ -203,7 +203,7 @@ void CameraController::zoom_(float notches) {
     camera->set_position(camera->get_position() + (before - after));
 }
 
-void CameraController::follow_(Render::Camera& camera, float dt) {
+void CameraController::follow_(Render::Camera2D& camera, float dt) {
     const glm::vec2 position = camera.get_position();
     const glm::vec2 offset   = follow_target_ - position;
 
@@ -231,7 +231,7 @@ glm::vec2 CameraController::key_dir_() const {
     );
 }
 
-glm::vec2 CameraController::edge_dir_(const Render::Camera& camera) const {
+glm::vec2 CameraController::edge_dir_(const Render::Camera2D& camera) const {
     // No edge pan while the cursor rests on a UI panel at the screen edge
     if (!has_cursor_ || input_.is_mouse_captured()) return { 0.0f, 0.0f };
 

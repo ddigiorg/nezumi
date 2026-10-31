@@ -5,7 +5,7 @@
 // =============================================================================
 
 #pragma once
-#include "Nezumi/Render/View/ViewID.hpp"
+#include "Nezumi/Render/Core/View/ViewID.hpp"
 #include "Nezumi/UI/Style.hpp"
 #include <cstdint>     // uint8_t, uint32_t
 #include <string_view> // string_view

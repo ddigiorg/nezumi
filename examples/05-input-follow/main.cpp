@@ -185,7 +185,7 @@ public:
 
     void on_init(Nezumi::Engine& engine) override {
         Nezumi::World&    world    = engine.world();
-        Render::Renderer* renderer = engine.renderer();
+        Render::Renderer2D* renderer = engine.renderer2d();
 
         // Bindings. A settings screen would change these at runtime.
         InputMap& input = engine.input();
@@ -299,7 +299,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_draw(Nezumi::Engine& engine) override {
-        Render::Renderer* r = engine.renderer();
+        Render::Renderer2D* r = engine.renderer2d();
 
         // Per frame: the camera is presentation, not simulation
         const Walker* walker = engine.world().get_entity_as<Walker>(walker_);
@@ -342,7 +342,7 @@ private:
     // Draw Ground
     // -------------------------------------------------------------------------
 
-    void draw_ground_(Render::Renderer* r, const Chunk& chunk, const Area2D& view) {
+    void draw_ground_(Render::Renderer2D* r, const Chunk& chunk, const Area2D& view) {
         const Area2D& bounds = chunk.bounds();
 
         const TileCoord min = TileCoord::from_position({
@@ -378,7 +378,7 @@ private:
     // screen draws on top).
     // -------------------------------------------------------------------------
 
-    void draw_units_(Render::Renderer* r, const Chunk& chunk) {
+    void draw_units_(Render::Renderer2D* r, const Chunk& chunk) {
         Render::DrawParams params = DRAW_PARAMS_UNITS;
         params.material = atlas_->material();
 
@@ -432,7 +432,7 @@ private:
     // camera following. Only shown while following.
     // -------------------------------------------------------------------------
 
-    void draw_dead_zone_(Render::Renderer* r) {
+    void draw_dead_zone_(Render::Renderer2D* r) {
         if (!camera_controller_->is_following()) return;
 
         const glm::vec2 center = world_camera_->get_position();
@@ -453,7 +453,7 @@ private:
     // Draw HUD
     // -------------------------------------------------------------------------
 
-    void draw_hud_(Render::Renderer* r, const Walker* walker) {
+    void draw_hud_(Render::Renderer2D* r, const Walker* walker) {
         const glm::vec2 pos = walker ? walker->position.to_vec2() : glm::vec2(0.0f);
         const glm::vec2 cam = world_camera_->get_position();
 
@@ -490,8 +490,8 @@ private:
     // Members
     // -------------------------------------------------------------------------
 
-    Render::Camera* world_camera_  = nullptr;
-    Render::Camera* screen_camera_ = nullptr;
+    Render::Camera2D* world_camera_  = nullptr;
+    Render::Camera2D* screen_camera_ = nullptr;
     Render::Atlas*  atlas_         = nullptr;
     Render::Font*   font_          = nullptr;
 

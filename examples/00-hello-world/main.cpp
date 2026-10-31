@@ -17,8 +17,9 @@
 //    engine.clock()     - timing information for the main loop
 //    engine.random()    - seeded random number generation
 //    engine.event_bus() - subscribe to and dispatch events
-//    engine.renderer()  - drawing (nullptr when graphics are disabled)
-//    engine.window()    - the OS window (nullptr when graphics are disabled)
+//    engine.renderer2d() - 2D drawing (nullptr when graphics or
+//                          EngineConfig::enable_renderer2d are disabled)
+//    engine.window()     - the OS window (nullptr when graphics are disabled)
 //
 // Run it, watch the log, then press Escape (or close the window) to quit.
 // =============================================================================
@@ -60,7 +61,7 @@ public:
     //
     // Called once per frame, after any ticks for that frame. The engine has
     // already started the frame (clearing the screen to
-    // EngineConfig::renderer.clear_color) and presents it after this returns,
+    // EngineConfig::render.clear_color) and presents it after this returns,
     // so only issue draw calls here and keep game logic in on_tick.
     // -------------------------------------------------------------------------
 

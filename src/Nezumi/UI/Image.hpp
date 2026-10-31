@@ -26,8 +26,8 @@
 // =============================================================================
 
 #pragma once
-#include "Nezumi/Render/Atlas/Atlas.hpp"
-#include "Nezumi/Render/Material/MaterialID.hpp"
+#include "Nezumi/Render/2D/Atlas/Atlas.hpp"
+#include "Nezumi/Render/Core/Material/MaterialID.hpp"
 #include <glm/glm.hpp> // vec2, vec4
 #include <utility>     // swap
 

@@ -177,7 +177,7 @@ public:
     void on_init(Nezumi::Engine& engine) override {
         Nezumi::Logger&   logger   = engine.logger();
         Nezumi::World&    world    = engine.world();
-        Render::Renderer* renderer = engine.renderer();
+        Render::Renderer2D* renderer = engine.renderer2d();
 
         // Setup cameras
         world_camera_  = renderer->get_view_camera(Render::View::World );
@@ -278,7 +278,7 @@ public:
     // -------------------------------------------------------------------------
 
     void on_draw(Nezumi::Engine& engine) override {
-        Render::Renderer* r = engine.renderer();
+        Render::Renderer2D* r = engine.renderer2d();
 
         // Per frame, not per tick: the camera is presentation, not simulation
         camera_controller_->update(engine.clock().get_real_dt());
@@ -339,7 +339,7 @@ private:
     // all batch into one draw.
     // -------------------------------------------------------------------------
 
-    void draw_ground_(Render::Renderer* r, const Chunk& chunk, const Area2D& view) {
+    void draw_ground_(Render::Renderer2D* r, const Chunk& chunk, const Area2D& view) {
         const Area2D& bounds = chunk.bounds();
 
         // Visible tiles of this chunk, [min, max] inclusive
@@ -376,7 +376,7 @@ private:
     // heading; left-facing frames are the right-facing ones mirrored.
     // -------------------------------------------------------------------------
 
-    void draw_units_(Render::Renderer* r, const Chunk& chunk) {
+    void draw_units_(Render::Renderer2D* r, const Chunk& chunk) {
         Render::DrawParams params = DRAW_PARAMS_UNITS;
         params.material = atlas_->material();
 
@@ -418,7 +418,7 @@ private:
     // integer tile and fraction, which is the tile-space convention in action.
     // -------------------------------------------------------------------------
 
-    void draw_hud_(Render::Renderer* r, Nezumi::Engine& engine) {
+    void draw_hud_(Render::Renderer2D* r, Nezumi::Engine& engine) {
         const glm::vec2  world = world_camera_->screen_to_world(cursor_);
         const Position2D pos   = { world.x, world.y };
         const TileCoord  tile  = TileCoord::from_position(pos);
@@ -463,8 +463,8 @@ private:
     // -------------------------------------------------------------------------
 
     // Owned by the renderer. SlotMap objects never move, so these stay valid
-    Render::Camera* world_camera_  = nullptr;
-    Render::Camera* screen_camera_ = nullptr;
+    Render::Camera2D* world_camera_  = nullptr;
+    Render::Camera2D* screen_camera_ = nullptr;
     Render::Atlas*  atlas_         = nullptr;
     Render::Font*   font_          = nullptr;
 

@@ -14,7 +14,8 @@ class Window;
 class World;
 
 namespace Render {
-    class Renderer;
+    class RenderCore;
+    class Renderer2D;
 }
 
 namespace RHI {
@@ -40,10 +41,11 @@ public:
     World*     world      = nullptr;
 
     // Graphics Subsystems (absent if graphics disabled)
-    RHI::Device*      device   = nullptr;
-    Window*           window   = nullptr;
-    Render::Renderer* renderer = nullptr;
-    UI::Context*      ui       = nullptr;
+    RHI::Device*        device     = nullptr;
+    Window*             window     = nullptr;
+    Render::RenderCore* render     = nullptr;
+    Render::Renderer2D* renderer2d = nullptr; // absent if Render2D is disabled
+    UI::Context*        ui         = nullptr; // absent if Render2D is disabled
 };
 
 } // namespace Nezumi
