@@ -18,7 +18,6 @@
 - **UI**: Immediate-mode panels (movable, resizable, scrolling) and widgets (buttons, checkboxes, toggles, sliders, text fields, dropdowns), drawn in one batch, with cursor styles and input capture
 - **Platform**: SDL3 for windowing, input, and application-level events
 - **Entity System**: Supports simulation of ~20k active units at 60 FPS
-- **World System**: Chunk-based sparse set of "Realms" (similar to Factorio surfaces)
 
 Planned features and improvements include:
 

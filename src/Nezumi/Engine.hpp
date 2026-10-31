@@ -15,7 +15,6 @@
 #include "Nezumi/Render/Core/RenderCore.hpp"
 #include "Nezumi/RHI/Device.hpp"
 #include "Nezumi/UI/Context.hpp"
-#include "Nezumi/World/World.hpp"
 #include "Nezumi/EngineConfig.hpp"
 #include "Nezumi/EngineContext.hpp"
 #include "Nezumi/IApplication.hpp"
@@ -84,7 +83,6 @@ public:
     Logger&    logger()     { return *logger_;     }
     Random&    random()     { return *random_;     }
     Stopwatch& stopwatch()  { return *stopwatch_;  }
-    World&     world()      { return *world_;      }
 
     // Graphics (nullptr if graphics are disabled). renderer2d() and ui() are
     // also nullptr when EngineConfig::enable_renderer2d is false.
@@ -132,7 +130,6 @@ private:
     std::unique_ptr<Random   > random_     = nullptr;
     std::unique_ptr<Stopwatch> stopwatch_  = nullptr;
     std::unique_ptr<Stopwatch> statswatch_ = nullptr; // not shared
-    std::unique_ptr<World>     world_      = nullptr;
 
     // Graphics Subsystems (absent if graphics disabled)
     std::unique_ptr<Window            > window_     = nullptr;

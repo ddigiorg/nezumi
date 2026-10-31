@@ -11,7 +11,6 @@ class Logger;
 class Random;
 class Stopwatch;
 class Window;
-class World;
 
 namespace Render {
     class RenderCore;
@@ -38,7 +37,6 @@ public:
     Logger*    logger     = nullptr;
     Random*    random     = nullptr;
     Stopwatch* stopwatch  = nullptr;
-    World*     world      = nullptr;
 
     // Graphics Subsystems (absent if graphics disabled)
     RHI::Device*        device     = nullptr;
