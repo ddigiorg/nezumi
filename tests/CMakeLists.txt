@@ -87,6 +87,7 @@ endfunction()
 # add_test_exe(test_logger)
 # add_test_exe(test_subsystems)
 add_test_exe(test_input_map)
+add_test_exe(test_particles)
 add_test_exe(test_ktx2)
 add_test_exe(test_sprite_packer)
 
