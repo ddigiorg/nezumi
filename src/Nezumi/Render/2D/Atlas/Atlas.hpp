@@ -72,6 +72,7 @@ public:
     RHI::SamplerHandle sampler()  const { return sampler_;  }
     std::uint32_t      width()    const { return width_;    }
     std::uint32_t      height()   const { return height_;   }
+    std::uint32_t      mip_levels() const { return mip_levels_; }
 
 private:
 
@@ -92,6 +93,7 @@ private:
     RHI::SamplerHandle sampler_  = {};
     std::uint32_t      width_    = 0;
     std::uint32_t      height_   = 0;
+    std::uint32_t      mip_levels_ = 1;
 
     // std::vector<SpriteRegion> sprites_;
 };

@@ -90,9 +90,9 @@
 //     syncs when writing a chunk the GPU is still reading.
 // 6.  RGBA8 instance colors. Shrinks Sprite from 48 to 36 bytes (less
 //     bandwidth); unpack in the shader.
-// 7.  Mipmaps. Generate mips and pad/extrude sprite borders to stop
-//     bleeding (currently restricted to mip_levels = 1; see TODO in
-//     AtlasConfig.hpp).
+// 7.  Mip padding in a packer. Atlas generates premultiplied mips
+//     (AtlasConfig::mip_levels), but sprites must be laid out on a 2^(n-1)
+//     grid by hand; an atlas builder (#8) should pad/extrude for it.
 // 8.  Atlas builder. Pack loose images into pages offline, grouping
 //     sprites that are drawn together.
 // 9.  Faster font loading. Bitmap -> SDF path (bsdf), multithreaded glyph

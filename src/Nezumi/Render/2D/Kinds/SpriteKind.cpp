@@ -87,7 +87,7 @@ RHI::RenderPipelineHandle SpriteKind::make_pipeline(const RenderContext& ctx, RH
     const std::array<RHI::ColorTargetState, 1> color_targets = {
         RHI::ColorTargetState{
             .format = format,
-            .blend  = RHI::BlendState::ALPHA_BLEND(),
+            .blend  = RHI::BlendState::PREMULTIPLIED_ALPHA(),
         },
     };
 

@@ -16,7 +16,9 @@ in vec4 v_tint;
 layout(location = 0) out vec4 o_color;
 
 void main() {
-    vec4 color = texture(u_texture, v_tex) * v_tint;
+    // Texels are premultiplied (see AtlasConfig.hpp); premultiply the
+    // straight-alpha tint to match. Output is premultiplied.
+    vec4 color = texture(u_texture, v_tex) * vec4(v_tint.rgb * v_tint.a, v_tint.a);
     if (color.a <= 0.0) discard;
     o_color = color;
 }

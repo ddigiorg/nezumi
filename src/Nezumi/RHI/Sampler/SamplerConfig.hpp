@@ -25,6 +25,7 @@ struct SamplerConfig {
     float              min_lod    = 0.0f;
     float              max_lod    = 1000.0f;  // effectively "no clamp"
     float              max_anisotropy = 1.0f; // 1 = off
+    float              lod_bias   = 0.0f;     // added to the computed mip level; < 0 = sharper
 };
 
 } // namespace Nezumi::RHI

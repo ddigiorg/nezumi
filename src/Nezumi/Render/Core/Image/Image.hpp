@@ -60,4 +60,26 @@ struct Image {
 
 Image load_image(std::string_view path);
 
+// -----------------------------------------------------------------------------
+// Premultiply Alpha
+//
+// Multiplies each pixel's RGB by its alpha, in place (rounded to nearest).
+// Atlases store premultiplied texels: linear filtering and mip averaging then
+// weight each texel's color by its coverage, so transparent pixels can't drag
+// their (usually black) RGB into sprite edges as dark fringes.
+// -----------------------------------------------------------------------------
+
+void premultiply_alpha(Image& image);
+
+// -----------------------------------------------------------------------------
+// Half Size
+//
+// The next mip level: each output pixel is the 2x2 box average of the input
+// pixels it covers (rounded to nearest). Sizes halve and round down, never
+// below 1, like GPU mip extents; an odd last row or column is folded into
+// its neighbor's average. Expects premultiplied input.
+// -----------------------------------------------------------------------------
+
+Image half_size(const Image& image);
+
 } // namespace Nezumi::Render

@@ -3,7 +3,8 @@
 //
 // Kind for light "cookies": a textured Quad (4 free corners) whose texture is
 // the light's shape (a lantern cone, a window, a rune), added into the
-// target with its alpha as the mask (BlendState::ADDITIVE). Same instance
+// target with its alpha as the mask (BlendState::ADD: the quad shader
+// outputs premultiplied color, so the mask is already applied). Same instance
 // and shaders as QuadKind; tint is the light's linear color and may exceed 1.
 //
 //   renderer.draw_light_quad(Quad{ .corners = cone, .tex_box = cookie,
@@ -35,7 +36,7 @@ struct LightQuadKind {
     }
 
     static RHI::RenderPipelineHandle make_pipeline(const RenderContext& ctx, RHI::Format format) {
-        return QuadKind::make_pipeline_with(ctx, format, RHI::BlendState::ADDITIVE(), NAME);
+        return QuadKind::make_pipeline_with(ctx, format, RHI::BlendState::ADD(), NAME);
     }
 };
 

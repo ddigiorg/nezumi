@@ -529,6 +529,7 @@ SamplerHandle GLDevice::create(const SamplerConfig& config) {
     );
 
     glSamplerParameterf(sampler.id, GL_TEXTURE_MAX_LOD, config.max_lod);
+    glSamplerParameterf(sampler.id, GL_TEXTURE_LOD_BIAS, config.lod_bias);
 
     if (config.max_anisotropy > 1.0f) {
         if (info_.max_sampler_anisotropy > 1.0f) {
