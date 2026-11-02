@@ -6,9 +6,11 @@
 
 #include "Nezumi/Core/BasePath.hpp"
 #include "Nezumi/Render/Core/Material/MaterialTable.hpp"
+#include <algorithm> // max, min
 #include <span>      // span
 #include <stdexcept> // runtime_error
 #include <string>    // string, to_string
+#include <vector>    // vector
 
 namespace Nezumi::Render {
 
@@ -46,13 +48,6 @@ void Atlas::create_(const AtlasConfig& config, const Image& image) {
     RHI::Device& device = *context_->device;
     const std::string name = std::string(config.name);
 
-    // See TODO note in SpriteAtlasConfig::mip_levels.
-    if (config.mip_levels != 1) {
-        throw std::runtime_error(
-            "SpriteAtlas '" + name + "': only 1 mip level is supported for now"
-        );
-    }
-
     // Ensure image is not empty
     if (image.empty()) {
         throw std::runtime_error(
@@ -70,22 +65,43 @@ void Atlas::create_(const AtlasConfig& config, const Image& image) {
     //     sprites_.push_back(make_region(config.sprites[i], i, config, width_, height_));
     // }
 
+    // Number of mip levels: 0 = the full chain, otherwise capped at it
+    std::uint32_t full_chain = 1;
+    for (std::uint32_t s = std::max(width_, height_); s > 1; s /= 2) ++full_chain;
+    mip_levels_ = (config.mip_levels == 0) ? full_chain : std::min(config.mip_levels, full_chain);
+
+    // Setup mip chain
+    //
+    // Premultiplied first (see AtlasConfig.hpp), so filtering and the box
+    // averages below weight color by coverage. Rows stay top to bottom and
+    // unflipped: row 0 is v = 0 on every backend.
+    std::vector<Image> levels;
+    levels.reserve(mip_levels_);
+    levels.push_back(image);
+    premultiply_alpha(levels.back());
+    for (std::uint32_t level = 1; level < mip_levels_; ++level) {
+        levels.push_back(half_size(levels.back()));
+    }
+
     // Setup texture
     //
-    // Uploaded at creation, rows top to bottom and unflipped: row 0 is v = 0
-    // on every backend. Static after this, so Sampled only (no CopyDst).
-    // RGBA8Unorm, not Srgb: matches the old renderer's GL_RGBA8, so colors
-    // look the same as before.
+    // Mip 0 is uploaded at creation; the smaller levels need CopyDst for
+    // write_texture. Static after this. RGBA8Unorm, not Srgb: matches the old
+    // renderer's GL_RGBA8, so colors look the same as before.
+    const RHI::TextureUsageFlags usage = (mip_levels_ > 1)
+        ? RHI::TextureUsageFlags::Sampled | RHI::TextureUsageFlags::CopyDst
+        : RHI::TextureUsageFlags::Sampled;
+
     texture_ = device.create(
         RHI::TextureConfig{
             .name         = name,
             .type         = RHI::TextureType::Texture2D,
             .format       = RHI::Format::RGBA8Unorm,
-            .width        = image.width,
-            .height       = image.height,
-            .mip_levels   = config.mip_levels, // 1; see TODO in SpriteAtlasConfig::mip_levels.
-            .usage        = RHI::TextureUsageFlags::Sampled,
-            .initial_data = std::as_bytes(std::span(image.pixels)),
+            .width        = width_,
+            .height       = height_,
+            .mip_levels   = mip_levels_,
+            .usage        = usage,
+            .initial_data = std::as_bytes(std::span(levels[0].pixels)),
         }
     );
     if (!texture_) {
@@ -95,16 +111,26 @@ void Atlas::create_(const AtlasConfig& config, const Image& image) {
         );
     }
 
+    for (std::uint32_t level = 1; level < mip_levels_; ++level) {
+        device.write_texture(
+            texture_,
+            RHI::TextureRegion{ .mip_level = level }, // whole level
+            std::as_bytes(std::span(levels[level].pixels))
+        );
+    }
+
     // Setup sampler
     sampler_ = device.create(
         RHI::SamplerConfig{
-            .name       = name,
-            .min_filter = config.min_filter,
-            .mag_filter = config.mag_filter,
-            .mip_filter = RHI::SamplerFilterMode::Nearest,
-            .address_u  = RHI::SamplerAddressMode::ClampToEdge,
-            .address_v  = RHI::SamplerAddressMode::ClampToEdge,
-            .address_w  = RHI::SamplerAddressMode::ClampToEdge,
+            .name           = name,
+            .min_filter     = config.min_filter,
+            .mag_filter     = config.mag_filter,
+            .mip_filter     = config.mip_filter,
+            .address_u      = config.address_mode,
+            .address_v      = config.address_mode,
+            .address_w      = config.address_mode,
+            .max_anisotropy = config.max_anisotropy,
+            .lod_bias       = config.lod_bias,
         }
     );
     if (!sampler_) {
@@ -136,6 +162,7 @@ void Atlas::remove_() {
     material_ = Material::None;
     texture_  = {};
     sampler_  = {};
+    mip_levels_ = 1;
     // sprites_.clear();
 }
 

@@ -47,7 +47,7 @@ struct QuadKind {
     }
 
     static RHI::RenderPipelineHandle make_pipeline(const RenderContext& ctx, RHI::Format format) {
-        return make_pipeline_with(ctx, format, RHI::BlendState::ALPHA_BLEND(), NAME);
+        return make_pipeline_with(ctx, format, RHI::BlendState::PREMULTIPLIED_ALPHA(), NAME);
     }
 
     // The same pipeline with another blend state (LightQuadKind adds)

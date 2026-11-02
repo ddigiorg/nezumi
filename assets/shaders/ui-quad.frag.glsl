@@ -127,16 +127,16 @@ void main() {
         pm = shade(d, v_color);
     }
     else if (shape == SHAPE_IMAGE) {
-        // Straight-alpha texel times the tint, masked to a rounded box
-        vec4  c    = tex * v_color;
+        // Premultiplied texel (see AtlasConfig.hpp) times the premultiplied
+        // tint, masked to a rounded box
+        vec4  c    = tex * vec4(v_color.rgb * v_color.a, v_color.a);
         float mask = 1.0;
         if (v_params.x > 0.0) {
             float d  = sd_round_box(p, h, v_params.x);
             float aa = max(fwidth(d), 1e-5);
             mask = clamp(0.5 - d / aa, 0.0, 1.0);
         }
-        float a = c.a * mask;
-        pm = vec4(c.rgb * a, a);
+        pm = c * mask;
     }
     else if (shape == SHAPE_CORNER) {
         float d = sd_triangle(p, vec2(h.x, h.y), vec2(h.x, -h.y), vec2(-h.x, -h.y));

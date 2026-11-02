@@ -7,7 +7,11 @@
 //
 // - Use `Nearest` for pixel art (crisp at any zoom)
 // - Use `Linear` for smooth art, with a 1-2 pixel gap between sprites in the
-//   image so neighbours don't bleed in.
+//   image so neighbours don't bleed in (more with mips; see mip_levels).
+//
+// Texels are stored premultiplied by alpha (see premultiply_alpha in
+// Image.hpp). Author images with straight alpha, as image editors save them;
+// the atlas converts them on load.
 // =============================================================================
 
 #pragma once
@@ -28,29 +32,36 @@ struct AtlasConfig {
     // How the texture is sampled when it is magnified (zoomed in )
     RHI::SamplerFilterMode mag_filter = RHI::SamplerFilterMode::Linear;
 
-    // Must be 1 for now; anything else throws.
+    // What sampling past the image's edge reads. ClampToEdge for sprite
+    // sheets; Repeat for a seamless texture sampled across many tiles (e.g.
+    // ground), so filtering and mips wrap instead of smearing the edge.
+    RHI::SamplerAddressMode address_mode = RHI::SamplerAddressMode::ClampToEdge;
+
+    // How the sampler blends between mip levels (Linear = trilinear)
+    RHI::SamplerFilterMode mip_filter = RHI::SamplerFilterMode::Linear;
+
+    // Number of mip levels, generated on the CPU from the image (2x2 box
+    // filter in premultiplied alpha). 1 = no mips; 0 = the full chain, down
+    // to 1x1. Mips stop zoomed-out sprites from shimmering, and keep the GPU
+    // from reading full-size texels for small on-screen sprites.
     //
-    // TODO: to support mip_levels > 1:
-    //  1. Generate the chain on the CPU: each level is the previous one
-    //     halved (2x2 box average, never below 1x1), down to mip_levels.
-    //     Average in premultiplied alpha, or transparent pixels' RGB bleeds
-    //     dark fringes into sprite edges at smaller levels.
-    //  2. Create the texture with mip_levels set and usage
-    //     Sampled | CopyDst (write_texture rejects textures without CopyDst).
-    //     initial_data still fills level 0.
-    //  3. Upload levels 1..n-1 with device.write_texture(texture,
-    //     { .mip_level = i }, level_pixels) (a zero width/height region
-    //     covers the whole level).
-    //  4. Add mip_filter to this config (Linear blends between levels) and
-    //     pass it to the sampler; min_filter still picks within a level.
-    //  5. Sprites must not share 2^k x 2^k blocks at the levels you keep, or
-    //     the averaging blends neighbours: put sprite boxes on a 2^(n-1) pixel
-    //     grid (the test atlas's 64-pixel grid allows up to 7 levels), or pad
-    //     between them by 2^(n-1) pixels.
-    //  (Alternative: add a generate_mipmaps(texture) call to the RHI that maps
-    //  to glGenerateTextureMipmap, replacing steps 1 and 3; step 5 still
-    //  applies.)
+    // Level k averages 2^k x 2^k pixel blocks, and linear filtering at that
+    // level reads one more texel on each side. So for n levels, put sprite
+    // boxes on a 2^(n-1) pixel grid, or leave 2^(n-1) pixels of transparent
+    // padding between sprites; otherwise neighbors bleed into each other at
+    // the smaller levels. 4 levels (8 px) covers zooming out to 1/8 size.
     std::uint32_t mip_levels = 1;
+
+    // Anisotropic filtering (1 = off). Helps textures squashed more along one
+    // axis than the other, e.g. square ground textures drawn as 2:1 iso
+    // diamonds. Clamped to what the device supports.
+    float max_anisotropy = 1.0f;
+
+    // Added to the mip level the GPU picks (negative = sharper, at the cost
+    // of some shimmer). Trilinear filtering blends toward the next smaller
+    // level as soon as a texture is minified at all, which can look soft;
+    // -0.5 is a common middle ground for detailed ground textures.
+    float lod_bias = 0.0f;
 
     // std::span<const SpritePixelBox> sprites = {};
 };
