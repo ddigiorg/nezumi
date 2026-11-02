@@ -10,7 +10,7 @@
 // window's text would draw above (or below) every other window's boxes, not
 // just its own. With one kind, the UI keeps submission order and draws in one
 // instanced call per texture run: text samples the font's atlas, images their
-// own atlas, and boxes and icons sample nothing, so they join any run. The
+// own sheet, and boxes and icons sample nothing, so they join any run. The
 // UI context gives each run its own draw order (see UI/Context.hpp).
 //
 // Why the clip box: windows clip their content (scrolled or resized), and

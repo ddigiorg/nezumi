@@ -10,7 +10,7 @@
 //   const auto corners = proj.box_to_view(tile.bounds().to_vec4());
 //   renderer.draw_quad(Quad{ .corners = corners, .tex_box = grass }, params);
 //
-// Drawn with Renderer2D::draw_quad(quad, { .material = atlas->material() }).
+// Drawn with Renderer2D::draw_quad(quad, { .material = sheet->material() }).
 // =============================================================================
 
 #pragma once

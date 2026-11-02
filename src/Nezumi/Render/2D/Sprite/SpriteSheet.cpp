@@ -252,7 +252,7 @@ void SpriteSheet::create_(const SpriteSheetConfig& config, std::span<const Image
     for (std::uint32_t s = std::max(page_width_, page_height_); s > 1; s /= 2) ++full_chain;
     mip_levels_ = (config.mip_levels == 0) ? full_chain : std::min(config.mip_levels, full_chain);
 
-    // Mip chains, premultiplied (see AtlasConfig.hpp), each level holding
+    // Mip chains, premultiplied (see SpriteSheetConfig.hpp), each level holding
     // every layer back to back, as texture uploads expect
     std::vector<std::vector<std::uint8_t>> levels(mip_levels_);
     for (const Image& page : pages) {

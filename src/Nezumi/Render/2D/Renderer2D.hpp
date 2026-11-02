@@ -68,11 +68,11 @@
 // Materials & resources
 //
 //   - MaterialTable owns only bind groups (texture + sampler).
-//   - SpriteAtlas and Font own their textures and samplers, and clean up
+//   - SpriteSheet and Font own their textures and samplers, and clean up
 //     on failure.
 //   - SpriteSheet loads array pages plus a manifest of named sprites
 //     (trimmed boxes, pivots) and animations (frames x directions, mirrored
-//     headings). Atlas (one image) is deprecated.
+//     headings), or takes images you already have.
 //   - Font uses a FreeType SDF glyph atlas with fallback glyphs; text
 //     layout supports alignment and measurement.
 //
@@ -91,11 +91,12 @@
 //     syncs when writing a chunk the GPU is still reading.
 // 6.  RGBA8 instance colors: done for Sprite (40 bytes with its layer).
 //     Shapes could follow.
-// 7.  Mip padding in a packer. Atlas generates premultiplied mips
-//     (AtlasConfig::mip_levels), but sprites must be laid out on a 2^(n-1)
-//     grid by hand; an atlas builder (#8) should pad/extrude for it.
-// 8.  Atlas builder. Pack loose images into pages offline, grouping
-//     sprites that are drawn together.
+// 7.  Mip padding in a packer: done in Nightmourn's tools/pack_sprites.py
+//     (SpriteSheetConfig::mip_levels needs a 2^(n-1) px grid). Edge
+//     extrusion for opaque-edged sprites could follow.
+// 8.  Sheet builder: Nightmourn's tools/pack_sprites.py packs loose images
+//     into pages offline. Move it into Nezumi's tools if a second game
+//     needs it.
 // 9.  Faster font loading. Bitmap -> SDF path (bsdf), multithreaded glyph
 //     rendering, and an on-disk atlas cache.
 // 10. Non-instanced kinds (DrawMode). Support kinds with arbitrary vertex
@@ -108,8 +109,6 @@
 
 #pragma once
 #include "Nezumi/Object/SlotMap.hpp"
-#include "Nezumi/Render/2D/Atlas/Atlas.hpp"
-#include "Nezumi/Render/2D/Atlas/AtlasConfig.hpp"
 #include "Nezumi/Render/2D/Sprite/SpriteSheet.hpp"
 #include "Nezumi/Render/2D/Sprite/SpriteSheetConfig.hpp"
 #include "Nezumi/Render/2D/Batch/BatchBuilder.hpp"
@@ -194,11 +193,6 @@ public:
     // Creates long-lived resources.
     // -------------------------------------------------------------------------
 
-    // Deprecated: use create_sprite_sheet (an image-only SpriteSheet does
-    // what an Atlas does). Atlas goes away once the examples and Nightmourn
-    // have moved over.
-    SlotMap<Atlas >::Pair create_atlas (const AtlasConfig&  config);
-
     // From config.manifest, or from images you already have (one per layer)
     SlotMap<SpriteSheet>::Pair create_sprite_sheet(const SpriteSheetConfig& config);
     SlotMap<SpriteSheet>::Pair create_sprite_sheet(const SpriteSheetConfig& config,
@@ -212,7 +206,6 @@ public:
     // Removes long-lived resources.
     // -------------------------------------------------------------------------
 
-    void remove_atlas (Handle<Atlas > handle);
     void remove_sprite_sheet(Handle<SpriteSheet> handle);
     void remove_camera(Handle<Camera2D> handle);
     void remove_font  (Handle<Font  > handle);
@@ -223,7 +216,6 @@ public:
     // Gets long-lived resources.
     // -------------------------------------------------------------------------
 
-    Atlas*  get_atlas (Handle<Atlas > handle);
     SpriteSheet* get_sprite_sheet(Handle<SpriteSheet> handle);
     Camera2D* get_camera(Handle<Camera2D> handle);
     Font*   get_font  (Handle<Font  > handle);
@@ -374,7 +366,6 @@ private:
     // Resources: long-lived GPU state
     KindRegistry kinds_;
 
-    SlotMap<Atlas   > atlases_;
     SlotMap<SpriteSheet> sprite_sheets_;
     SlotMap<Camera2D> cameras_;
     SlotMap<Font    > fonts_;

@@ -3,7 +3,7 @@
 //
 // Bind group 1: one texture + sampler per MaterialId. A material is what the
 // sort key's material field refers to, so draws that share one can batch.
-// Today each atlas page is one material.
+// Today each SpriteSheet (all its pages) and each Font is one material.
 //
 // Material ids are small (16 bits) and recycled after remove(). 0 means "no
 // material" and is never handed out.

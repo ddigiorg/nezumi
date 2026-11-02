@@ -54,7 +54,7 @@
 //
 // ## Images, drag and drop, slot grids
 //
-// Images come from any Render::Atlas (Image.hpp); a NineSlice stretches one
+// Images come from any Render::SpriteSheet (Image.hpp); a NineSlice stretches one
 // into a frame of any size. Drag and drop is described in DragDrop.hpp, and
 // slot_grid() (SlotGrid.hpp) combines all three into the item slot grid that
 // action bars, inventories and chests share.

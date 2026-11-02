@@ -207,10 +207,6 @@ void Renderer2D::finish(RenderCore& core) {
 // Create
 // -----------------------------------------------------------------------------
 
-SlotMap<Atlas>::Pair Renderer2D::create_atlas(const AtlasConfig& config) {
-    return atlases_.create(core_.context(), config);
-}
-
 SlotMap<SpriteSheet>::Pair Renderer2D::create_sprite_sheet(const SpriteSheetConfig& config) {
     return sprite_sheets_.create(core_.context(), config);
 }
@@ -234,10 +230,6 @@ SlotMap<Font>::Pair Renderer2D::create_font(const FontConfig& config) {
 // Remove
 // -----------------------------------------------------------------------------
 
-void Renderer2D::remove_atlas(Handle<Atlas> handle) {
-    atlases_.remove(handle);
-}
-
 void Renderer2D::remove_sprite_sheet(Handle<SpriteSheet> handle) {
     sprite_sheets_.remove(handle);
 }
@@ -253,10 +245,6 @@ void Renderer2D::remove_font(Handle<Font> handle) {
 // -----------------------------------------------------------------------------
 // Get
 // -----------------------------------------------------------------------------
-
-Atlas* Renderer2D::get_atlas(Handle<Atlas> handle) {
-    return atlases_.get(handle);
-}
 
 SpriteSheet* Renderer2D::get_sprite_sheet(Handle<SpriteSheet> handle) {
     return sprite_sheets_.get(handle);
@@ -330,7 +318,7 @@ void Renderer2D::draw_light_quad(
     const DrawParams& params)
 {
     assert(params.material != Material::None &&
-           "Renderer2D: draw_light_quad needs a material (e.g. atlas->material())");
+           "Renderer2D: draw_light_quad needs a material (e.g. sheet->material())");
     draw<LightQuadKind>(quad, params);
 }
 
@@ -348,7 +336,7 @@ void Renderer2D::draw_quad(
     const DrawParams& params)
 {
     assert(params.material != Material::None &&
-           "Renderer2D: draw_quad needs a material (e.g. atlas->material())");
+           "Renderer2D: draw_quad needs a material (e.g. sheet->material())");
     draw<QuadKind>(quad, params);
 }
 
@@ -377,7 +365,7 @@ void Renderer2D::draw_sprite(
     const DrawParams& params)
 {
     assert(params.material != Material::None &&
-           "Renderer2D: draw_sprite needs a material (e.g. atlas->material())");
+           "Renderer2D: draw_sprite needs a material (e.g. sheet->material())");
     draw<SpriteKind>(sprite, params);
 }
 

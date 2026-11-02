@@ -85,7 +85,7 @@ static constexpr Layer LAYER_OVERLAY    = 3;
 // -----------------------------------------------------------------------------
 // Draw Params
 //
-// One per layer this example draws on. Sprites add their atlas material.
+// One per layer this example draws on. Sprites add their sheet material.
 // -----------------------------------------------------------------------------
 
 constexpr Render::DrawParams DRAW_PARAMS_BACKGROUND = {
@@ -156,11 +156,11 @@ public:
             }
         );
 
-        // Setup sprite atlas
-        atlas_ = r->create_atlas(
-            Render::AtlasConfig{
-                .name     = "example-atlas",
-                .filepath = "assets/graphics/atlas.png",
+        // Setup sprite sheet (page 0 is atlas.png)
+        sheet_ = r->create_sprite_sheet(
+            Render::SpriteSheetConfig{
+                .name     = "example-sheet",
+                .manifest = "assets/graphics/example-sheet.json",
             }
         ).object;
 
@@ -573,8 +573,8 @@ private:
     // -------------------------------------------------------------------------
     // Draw Sprites
     //
-    // The same atlas region (the red down arrow in the top-left corner of
-    // atlas.png) drawn three times: untinted, tinted lavender, and translucent.
+    // The same sheet region (the red down arrow in the top-left corner of
+    // atlas.png, page 0) drawn three times: untinted, tinted lavender, and translucent.
     // -------------------------------------------------------------------------
 
     void draw_sprites_(Render::Renderer2D* r) {
@@ -582,10 +582,10 @@ private:
 
         draw_subtitle_(r, "Sprites", { 0.0f, -250.0f });
 
-        const glm::vec4 tex_box = atlas_->tex_box(PIXEL_BOX);
+        const glm::vec4 tex_box = sheet_->tex_box(PIXEL_BOX);
 
         Render::DrawParams params = DRAW_PARAMS_CONTENT;
-        params.material = atlas_->material();
+        params.material = sheet_->material();
 
         struct SpriteDemo { float x; glm::vec4 tint; };
         static constexpr std::array<SpriteDemo, 3> DEMOS = {{
@@ -739,7 +739,7 @@ private:
     // until removed, and this example never removes them.
     Render::Camera2D* world_camera_  = nullptr;
     Render::Camera2D* screen_camera_ = nullptr;
-    Render::Atlas*  atlas_         = nullptr;
+    Render::SpriteSheet* sheet_    = nullptr;
     Render::Font*   font_          = nullptr;
 
     std::unique_ptr<CameraController> camera_controller_ = nullptr;
