@@ -12,7 +12,12 @@
 
 namespace Nezumi::Render {
 
-RHI::RenderPipelineHandle QuadKind::make_pipeline(const RenderContext& ctx) {
+RHI::RenderPipelineHandle QuadKind::make_pipeline_with(
+    const RenderContext&   ctx,
+    RHI::Format            format,
+    const RHI::BlendState& blend,
+    std::string_view       name)
+{
 
     // Setup vertex shader
     const RHI::ShaderHandle vert_shader = ctx.shaders->get(
@@ -92,15 +97,15 @@ RHI::RenderPipelineHandle QuadKind::make_pipeline(const RenderContext& ctx) {
     // Setup color targets
     const std::array<RHI::ColorTargetState, 1> color_targets = {
         RHI::ColorTargetState{
-            .format = ctx.device->backbuffer_format(),
-            .blend  = RHI::BlendState::ALPHA_BLEND(),
+            .format = format,
+            .blend  = blend,
         },
     };
 
     // Create render pipeline
     RHI::RenderPipelineHandle pipeline = ctx.device->create(
         RHI::RenderPipelineConfig{
-            .name               = NAME,
+            .name               = name,
             .vertex_shader      = vert_shader,
             .fragment_shader    = frag_shader,
             .vertex_buffers     = vertex_buffers,

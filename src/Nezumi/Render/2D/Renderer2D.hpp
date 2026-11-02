@@ -41,6 +41,16 @@
 //   - A kind is a traits struct. Adding one doesn't touch the core.
 //   - KindRegistry creates pipelines lazily; kinds_.ensure<K>() builds them at
 //     startup so broken shaders fail early.
+//   - One pipeline per kind per target format: before each frame's passes,
+//     prepare() makes the pipelines for every format this renderer records
+//     into (e.g. RGBA16Float scene and light targets beside the backbuffer).
+//
+// Lights
+//
+//   - PointLight (procedural falloff) and light quads (textured cookies) are
+//     kinds like any other, added rather than blended. Drawn into
+//     View::Lights, which shares the world camera, a lit recipe records them
+//     into a light target that PostProcess multiplies the scene by.
 //
 // Cameras & views
 //
@@ -111,8 +121,11 @@
 #include "Nezumi/Render/2D/Kinds/ArrowKind.hpp"
 #include "Nezumi/Render/2D/Kinds/Circle.hpp"
 #include "Nezumi/Render/2D/Kinds/CircleKind.hpp"
+#include "Nezumi/Render/2D/Kinds/LightQuadKind.hpp"
 #include "Nezumi/Render/2D/Kinds/Line.hpp"
 #include "Nezumi/Render/2D/Kinds/LineKind.hpp"
+#include "Nezumi/Render/2D/Kinds/PointLight.hpp"
+#include "Nezumi/Render/2D/Kinds/PointLightKind.hpp"
 #include "Nezumi/Render/2D/Kinds/Quad.hpp"
 #include "Nezumi/Render/2D/Kinds/QuadKind.hpp"
 #include "Nezumi/Render/2D/Kinds/Rectangle.hpp"
@@ -169,7 +182,7 @@ public:
     void begin_frame(RenderCore& core) override;
     void prepare    (RenderCore& core) override;
     void upload     (RenderCore& core) override;
-    void record     (RenderCore& core, RHI::CommandEncoder& encoder, ViewMask views) override;
+    void record     (RenderCore& core, RHI::CommandEncoder& encoder, const PassContext& pass) override;
     void finish     (RenderCore& core) override;
 
     // -------------------------------------------------------------------------
@@ -216,6 +229,9 @@ public:
     // - View::World:  "world-camera"  (Centered, Renderer2DConfig::world_pixels_per_unit)
     // - View::Screen: "screen-camera" (BottomLeft, 1 unit = 1 point, which is
     //                                  display_scale pixels)
+    // - View::Lights, View::Emissive: the world camera, so lights and glows
+    //                                  line up with the world. Point them at
+    //                                  a new camera too if you replace World's.
     //
     // The display scale is the screen's HiDPI factor (RenderCore's, set by
     // the Engine before each frame), so content keeps its physical size while
@@ -263,6 +279,18 @@ public:
         const Circle&     circle,
         const DrawParams& params = {},
         const bool        filled = true);
+
+    // Render a PointLight. Drawn to View::Lights by default: it lights the
+    // world in a lit recipe (see PostProcess). Into View::Emissive it is an
+    // unlit glow.
+    void draw_light(
+        const PointLight& light,
+        const DrawParams& params = { .view = View::Lights });
+
+    // Render a light cookie: a textured Quad added with its alpha as mask
+    void draw_light_quad(
+        const Quad&       quad,
+        const DrawParams& params);
 
     // Render Line render object
     void draw_line(

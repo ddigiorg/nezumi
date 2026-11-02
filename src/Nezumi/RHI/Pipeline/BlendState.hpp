@@ -63,9 +63,32 @@ struct BlendState {
     }
 
     // -------------------------------------------------------------------------
+    // Add
+    //
+    // dst + src, ignoring alpha. Light accumulation into a light target, and
+    // bloom upsampling.
+    // -------------------------------------------------------------------------
+
+    static constexpr BlendState ADD() noexcept {
+        return {
+            /*.enabled = */true,
+            /*.color   = */{
+                /*.src = */BlendFactor::One,
+                /*.dst = */BlendFactor::One,
+                /*.op  = */BlendOp::Add
+            },
+            /*.alhpa   = */{
+                /*.src = */BlendFactor::One,
+                /*.dst = */BlendFactor::One,
+                /*.op  = */BlendOp::Add
+            }
+        };
+    }
+
+    // -------------------------------------------------------------------------
     // Additive
     //
-    // Glows, particles, light sprites.
+    // Glows, particles, light sprites: dst + src * src alpha.
     // -------------------------------------------------------------------------
 
     static constexpr BlendState ADDITIVE() noexcept {

@@ -34,12 +34,18 @@ Renderer2D::Renderer2D(RenderCore& core, const Renderer2DConfig& config)
         }
     ).handle;
 
+    // Lights and glows draw through the world camera
+    views_[View::Lights  ] = views_[View::World];
+    views_[View::Emissive] = views_[View::World];
+
     // Register a kind's pipeline now instead of on its first draw time so a
     // broken shader fails early and the first frame doesn't hitch.
     RenderContext& ctx = core_.context();
     kinds_.ensure<ArrowKind            >(ctx);
     kinds_.ensure<CircleKind           >(ctx);
+    kinds_.ensure<LightQuadKind        >(ctx);
     kinds_.ensure<LineKind             >(ctx);
+    kinds_.ensure<PointLightKind       >(ctx);
     kinds_.ensure<QuadKind             >(ctx);
     kinds_.ensure<RectangleFilledKind  >(ctx);
     kinds_.ensure<RectangleUnfilledKind>(ctx);
@@ -78,6 +84,18 @@ void Renderer2D::begin_frame(RenderCore& core) {
 }
 
 void Renderer2D::prepare(RenderCore& core) {
+    // Pipelines for every target format a pass records this renderer into.
+    // A no-op once they exist; outside the device frame, so a first use
+    // doesn't create pipelines mid-recording.
+    for (const PassConfig& pass : core.get_recipe().passes) {
+        for (const PassFeature& entry : pass.features) {
+            if (entry.feature == this) {
+                kinds_.ensure_format(core.context(), core.target_format(pass.target));
+                break;
+            }
+        }
+    }
+
     // CPU: sort + merge + gather into the stream mirrors.
     batches_ = builder_.build(queue_, core.stream());
 
@@ -104,8 +122,10 @@ void Renderer2D::upload(RenderCore& core) {
 void Renderer2D::record(
     RenderCore&          core,
     RHI::CommandEncoder& encoder,
-    ViewMask             views)
+    const PassContext&   pass)
 {
+    const ViewMask views = pass.views;
+
     ViewID     bound_view     = 0xFF; // nothing bound yet
     bool       have_kind      = false;
     KindID     bound_kind     = 0;
@@ -133,8 +153,14 @@ void Renderer2D::record(
 
         // Resolve batch kind change
         if (!have_kind || batch.kind != bound_kind) {
+            const RHI::RenderPipelineHandle pipeline = kind.pipeline(pass.format);
+            if (!pipeline) { // a format prepare() didn't see (recipe changed mid-frame)
+                stats_.dropped += batch.instance_count;
+                have_kind = false;
+                continue;
+            }
             encoder.set_render_pipeline(
-                /*.pipeline = */kind.pipeline
+                /*.pipeline = */pipeline
             );
             encoder.set_vertex_buffer(
                 /*.slot   = */0,
@@ -269,6 +295,24 @@ void Renderer2D::draw_circle(
     Circle instance = circle;
     if (filled) instance.width = instance.radius;
     draw<CircleKind>(instance, params);
+}
+
+// Render PointLight render object
+void Renderer2D::draw_light(
+    const PointLight& light,
+    const DrawParams& params)
+{
+    draw<PointLightKind>(light, params);
+}
+
+// Render light quad render object
+void Renderer2D::draw_light_quad(
+    const Quad&       quad,
+    const DrawParams& params)
+{
+    assert(params.material != Material::None &&
+           "Renderer2D: draw_light_quad needs a material (e.g. atlas->material())");
+    draw<LightQuadKind>(quad, params);
 }
 
 // Render Line render object

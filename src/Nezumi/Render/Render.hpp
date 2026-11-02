@@ -13,4 +13,5 @@
 
 #pragma once
 #include "Nezumi/Render/2D/Renderer2D.hpp"
+#include "Nezumi/Render/Core/Post/PostProcess.hpp"
 #include "Nezumi/Render/Core/RenderCore.hpp"

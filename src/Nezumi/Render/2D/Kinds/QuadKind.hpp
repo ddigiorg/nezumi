@@ -46,7 +46,16 @@ struct QuadKind {
         return std::as_bytes(std::span(VERTICES));
     }
 
-    static RHI::RenderPipelineHandle make_pipeline(const RenderContext& ctx);
+    static RHI::RenderPipelineHandle make_pipeline(const RenderContext& ctx, RHI::Format format) {
+        return make_pipeline_with(ctx, format, RHI::BlendState::ALPHA_BLEND(), NAME);
+    }
+
+    // The same pipeline with another blend state (LightQuadKind adds)
+    static RHI::RenderPipelineHandle make_pipeline_with(
+        const RenderContext& ctx,
+        RHI::Format          format,
+        const RHI::BlendState& blend,
+        std::string_view     name);
 };
 
 static_assert(KindConcept<QuadKind>);

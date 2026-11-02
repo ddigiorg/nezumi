@@ -3,8 +3,10 @@
 // =============================================================================
 
 #include "Nezumi/Render/Core/RenderCore.hpp"
-#include <algorithm> // find, remove
+#include <algorithm> // find, max, remove
 #include <cassert>   // assert
+#include <cmath>     // lround
+#include <stdexcept> // runtime_error
 
 namespace Nezumi::Render {
 
@@ -27,6 +29,10 @@ RenderCore::RenderCore(RHI::Device& device, const RenderCoreConfig& config)
         .shaders   = &shaders_,
         .stream    = &stream_,
     };
+}
+
+RenderCore::~RenderCore() {
+    for (TargetSlot& slot : targets_) device_.remove(slot.texture);
 }
 
 // -----------------------------------------------------------------------------
@@ -69,6 +75,9 @@ void RenderCore::end_frame() {
 
     RHI::CommandEncoder& encoder = device_.begin_frame();
 
+    // Targets follow the backbuffer, now that its size is final for this frame
+    resize_targets_();
+
     for (IRenderFeature* feature : features_) {
         feature->upload(*this);
     }
@@ -87,8 +96,11 @@ void RenderCore::end_frame() {
     // -------------------------------------------------------------------------
 
     for (const PassConfig& pass : recipe_.passes) {
+        const RHI::TextureHandle target = target_texture(pass.target);
+        if (!target) continue; // a zero-sized backbuffer (minimized)
+
         const RHI::ColorAttachment color[] = {{
-            .texture     = device_.backbuffer(),
+            .texture     = target,
             .load_op     = pass.clear ? RHI::LoadOp::Clear : RHI::LoadOp::Load,
             .store_op    = RHI::StoreOp::Store,
             .clear_color = pass.clear_color,
@@ -101,11 +113,20 @@ void RenderCore::end_frame() {
             }
         );
 
+        PassContext ctx = {
+            .name   = pass.name,
+            .target = pass.target,
+            .format = target_format(pass.target),
+            .extent = target_extent(pass.target),
+        };
+
         for (const PassFeature& entry : pass.features) {
             assert(entry.feature &&
                    std::find(features_.begin(), features_.end(), entry.feature) != features_.end() &&
                    "RenderCore: pass lists a feature that isn't registered");
-            entry.feature->record(*this, encoder, entry.views);
+            ctx.views = entry.views;
+            ctx.step  = entry.step;
+            entry.feature->record(*this, encoder, ctx);
         }
 
         encoder.end_render_pass();
@@ -157,6 +178,90 @@ void RenderCore::remove_feature(IRenderFeature& feature) {
 void RenderCore::set_recipe(FrameRecipe recipe) {
     assert(!in_frame_ && "RenderCore: changing the recipe during a frame");
     recipe_ = std::move(recipe);
+}
+
+// -----------------------------------------------------------------------------
+// Targets
+// -----------------------------------------------------------------------------
+
+TargetID RenderCore::create_target(const RenderTargetConfig& config) {
+    assert(!in_frame_ && "RenderCore: creating a target during a frame");
+    if (targets_.size() >= 0xFE) {
+        throw std::runtime_error("RenderCore: out of render targets (254)");
+    }
+    if (!(config.scale > 0.0f)) {
+        throw std::runtime_error("RenderCore: target '" + config.name + "' needs a scale > 0");
+    }
+
+    TargetSlot& slot = targets_.emplace_back(TargetSlot{ .config = config });
+    create_target_texture_(slot, scaled_extent_(config.scale));
+    return static_cast<TargetID>(targets_.size());
+}
+
+RHI::TextureHandle RenderCore::target_texture(TargetID target) const {
+    if (target == Target::Backbuffer) {
+        const RHI::Extent2D size = device_.backbuffer_extent();
+        return (size.width > 0 && size.height > 0) ? device_.backbuffer() : RHI::TextureHandle{};
+    }
+    assert(target <= targets_.size() && "RenderCore: unknown target");
+    return targets_[target - 1].texture;
+}
+
+RHI::Format RenderCore::target_format(TargetID target) const {
+    if (target == Target::Backbuffer) return device_.backbuffer_format();
+    assert(target <= targets_.size() && "RenderCore: unknown target");
+    return targets_[target - 1].config.format;
+}
+
+RHI::Extent2D RenderCore::target_extent(TargetID target) const {
+    if (target == Target::Backbuffer) return device_.backbuffer_extent();
+    assert(target <= targets_.size() && "RenderCore: unknown target");
+    return targets_[target - 1].extent;
+}
+
+const RenderTargetConfig& RenderCore::target_config(TargetID target) const {
+    assert(target != Target::Backbuffer && target <= targets_.size() && "RenderCore: unknown target");
+    return targets_[target - 1].config;
+}
+
+RHI::Extent2D RenderCore::scaled_extent_(float scale) const {
+    const RHI::Extent2D size = device_.backbuffer_extent();
+    const auto scaled = [&](std::uint32_t n) {
+        return static_cast<std::uint32_t>(std::max(1L, std::lround(float(n) * scale)));
+    };
+    return { scaled(std::max<std::uint32_t>(size.width,  1)),
+             scaled(std::max<std::uint32_t>(size.height, 1)) };
+}
+
+void RenderCore::create_target_texture_(TargetSlot& slot, RHI::Extent2D extent) {
+    device_.remove(slot.texture); // deferred: the GPU may still read the old one
+
+    slot.extent  = extent;
+    slot.texture = device_.create(
+        RHI::TextureConfig{
+            .name   = slot.config.name,
+            .format = slot.config.format,
+            .width  = extent.width,
+            .height = extent.height,
+            .usage  = RHI::TextureUsageFlags::ColorTarget | RHI::TextureUsageFlags::Sampled,
+        }
+    );
+    if (!slot.texture) {
+        throw std::runtime_error(
+            "RenderCore: target '" + slot.config.name + "' failed (see log)");
+    }
+}
+
+void RenderCore::resize_targets_() {
+    const RHI::Extent2D size = device_.backbuffer_extent();
+    if (size.width == 0 || size.height == 0) return; // minimized: keep the old ones
+
+    for (TargetSlot& slot : targets_) {
+        const RHI::Extent2D want = scaled_extent_(slot.config.scale);
+        if (want.width != slot.extent.width || want.height != slot.extent.height) {
+            create_target_texture_(slot, want);
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------

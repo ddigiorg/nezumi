@@ -14,6 +14,10 @@
 //         .features = { { &renderer2d, view_bit(View::Screen) } } },
 //   };
 //
+// A lit 2D game draws the world and its lights into offscreen targets and
+// lets PostProcess composite them (see PostProcess.hpp and
+// examples/07-lighting).
+//
 // This is a plain ordered list, not a render graph: passes don't declare what
 // they read and write, and nothing is reordered or allocated for them.
 // =============================================================================
