@@ -921,7 +921,7 @@ void Context::draw_image_(const Rect& r, const Image& image, const glm::vec4& ti
         .tex_box  = image.tex_box,
         .color    = tint,
         .clip_box = box4(clip_),
-        .params   = { radius, 0.0f, float(UIQuadShape::Image), 0.0f },
+        .params   = { radius, 0.0f, float(UIQuadShape::Image), float(image.layer) },
     }, image.material });
 }
 

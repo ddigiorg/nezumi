@@ -27,6 +27,8 @@
 
 #pragma once
 #include "Nezumi/Render/2D/Atlas/Atlas.hpp"
+#include "Nezumi/Render/2D/Sprite/SpriteSheet.hpp"
+#include <cstdint>     // uint32_t
 #include "Nezumi/Render/Core/Material/MaterialID.hpp"
 #include <glm/glm.hpp> // vec2, vec4
 #include <utility>     // swap
@@ -37,6 +39,7 @@ struct Image {
     Render::MaterialID material = Render::Material::None; // None: no image
     glm::vec4          tex_box  = { 0.0f, 0.0f, 1.0f, 1.0f }; // atlas UVs { min_u, min_v, max_u, max_v }, v down
     glm::vec2          size     = { 0.0f, 0.0f };             // natural size, points
+    std::uint32_t      layer    = 0;                          // the material's array layer
 
     // `pixel_box`: { x0, y0, x1, y1 } in the atlas image, y down
     static Image from(const Render::Atlas& atlas, glm::vec4 pixel_box, float density = 1.0f) {
@@ -44,6 +47,29 @@ struct Image {
             .material = atlas.material(),
             .tex_box  = atlas.tex_box(pixel_box),
             .size     = glm::vec2(pixel_box.z - pixel_box.x, pixel_box.w - pixel_box.y) / density,
+        };
+    }
+
+    // A sheet's sprite at its stored (trimmed) size
+    static Image from(const Render::SpriteSheet& sheet, Render::SpriteID sprite, float density = 1.0f) {
+        const Render::SpriteRegion& r = sheet.region(sprite);
+        return {
+            .material = sheet.material(),
+            .tex_box  = r.tex_box,
+            .size     = r.size / density,
+            .layer    = r.layer,
+        };
+    }
+
+    // `pixel_box` on page `layer` of a sheet without named sprites
+    static Image from(const Render::SpriteSheet& sheet, glm::vec4 pixel_box,
+                      float density = 1.0f, std::uint32_t layer = 0)
+    {
+        return {
+            .material = sheet.material(),
+            .tex_box  = sheet.tex_box(pixel_box),
+            .size     = glm::vec2(pixel_box.z - pixel_box.x, pixel_box.w - pixel_box.y) / density,
+            .layer    = layer,
         };
     }
 
@@ -63,6 +89,7 @@ struct Image {
             .material = material,
             .tex_box  = { a.x + box.x * d.x, a.y + box.y * d.y, a.x + box.z * d.x, a.y + box.w * d.y },
             .size     = size * glm::vec2(box.z - box.x, box.w - box.y),
+            .layer    = layer,
         };
     }
 };

@@ -49,7 +49,8 @@ struct UIQuad {
     // x: corner radius (Box, Image)
     // y: border width (Box) or stroke width (Cross, Check), in view units
     // z: UIQuadShape
-    // w: glyph weight, in SDF value units (Glyph; see TextGlyphSDF)
+    // w: glyph weight, in SDF value units (Glyph; see TextGlyphSDF), or the
+    //    material's array layer (Image)
     glm::vec4 params       = { 0.0f, 0.0f, 0.0f, 0.0f };
 };
 

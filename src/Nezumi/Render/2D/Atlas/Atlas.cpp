@@ -95,7 +95,7 @@ void Atlas::create_(const AtlasConfig& config, const Image& image) {
     texture_ = device.create(
         RHI::TextureConfig{
             .name         = name,
-            .type         = RHI::TextureType::Texture2D,
+            .type         = RHI::TextureType::Texture2DArray, // one layer; every material texture is an array
             .format       = RHI::Format::RGBA8Unorm,
             .width        = width_,
             .height       = height_,

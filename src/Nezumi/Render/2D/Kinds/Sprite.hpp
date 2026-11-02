@@ -1,9 +1,10 @@
 // =============================================================================
 // Sprite.hpp
 //
-// Per-instance rectangle data (48 bytes).
+// Per-instance rectangle data (40 bytes).
 //
-// Drawn with Renderer2D::draw_sprite(sprite, { .material = atlas->material() }).
+// Drawn with Renderer2D::draw_sprite(sprite, { .material = sheet->material() }).
+// SpriteSheet::sprite_at() fills tex_box and layer from a sprite's region.
 //
 // For depth sorting put the sort value in DrawParams::order, e.g.
 //
@@ -11,6 +12,8 @@
 // =============================================================================
 
 #pragma once
+#include "Nezumi/Render/Core/Color/Rgba8.hpp"
+#include <cstdint>     // uint32_t
 #include <glm/glm.hpp> // vec4
 
 namespace Nezumi::Render {
@@ -24,11 +27,14 @@ struct Sprite {
     // Note: v = 0 at the image's top row.
     // Note: Swap min_u/max_u to mirror horizontally.
 
-    // Tint             {     r,     g,     b,     a }
-    glm::vec4 tint    = {  1.0f,  1.0f,  1.0f,  1.0f };
-    // Note: Multiplied with the texture: white = unchanged, alpha fades.
+    // Tint, packed RGBA8 (see rgba8()). Multiplied with the texture: white =
+    // unchanged, alpha fades.
+    std::uint32_t tint  = RGBA8_WHITE;
+
+    // Layer (page) of the material's array texture that tex_box is on
+    std::uint32_t layer = 0;
 };
 
-static_assert(sizeof(Sprite) == 48, "Sprite is 48 bytes");
+static_assert(sizeof(Sprite) == 40, "Sprite is 40 bytes");
 
 } // namespace Nezumi::Render

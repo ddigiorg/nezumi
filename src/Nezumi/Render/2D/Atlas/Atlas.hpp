@@ -6,6 +6,9 @@
 // sprites inside it. All sprites in an atlas batch together, since they
 // share the material.
 //
+// Deprecated: a SpriteSheet made from one image does the same (and more).
+// Atlas stays until the examples and Nightmourn have moved over.
+//
 // Texel convention: v = 0 is the TOP row of the image, as stored in the file.
 // The image is never flipped; the sprite shader maps a quad's bottom edge to
 // the sprite's bottom row.

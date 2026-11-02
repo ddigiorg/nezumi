@@ -13,7 +13,7 @@
 
 // The material's texture: the UI font's atlas for Glyph, an image's atlas for
 // Image. The other shapes ignore it.
-uniform sampler2D u_texture;
+uniform sampler2DArray u_texture; // every material texture is an array (see MaterialTable.hpp)
 
 in vec2      v_local;
 in vec2      v_half;
@@ -71,7 +71,11 @@ vec4 shade(float d, vec4 c) {
 
 void main() {
     // Sampled outside the branches so its derivatives are always defined.
-    vec4  tex = texture(u_texture, v_tex);
+    // params.w is the array layer for Image (the glyph weight for Glyph,
+    // whose font atlas has one layer)
+    int   shape0 = int(v_params.z + 0.5);
+    float layer  = (shape0 == SHAPE_IMAGE) ? v_params.w : 0.0;
+    vec4  tex = texture(u_texture, vec3(v_tex, layer));
     float sdf = tex.r;
 
     int   shape  = int(v_params.z + 0.5);

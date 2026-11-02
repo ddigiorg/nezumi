@@ -599,7 +599,7 @@ private:
                 Render::Sprite{
                     .pos_box = { d.x - 16.0f, -192.0f, d.x + 16.0f, -128.0f },
                     .tex_box = tex_box,
-                    .tint    = d.tint,
+                    .tint    = Render::rgba8(d.tint),
                 },
                 params
             );

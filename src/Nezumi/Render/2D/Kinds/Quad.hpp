@@ -1,7 +1,7 @@
 // =============================================================================
 // Quad.hpp
 //
-// Per-instance textured quad with 4 free corners (64 bytes).
+// Per-instance textured quad with 4 free corners (68 bytes).
 //
 // A Sprite is an axis-aligned box; a Quad is any parallelogram (or any convex
 // quad, sampled bilinearly). It draws a square texture as a diamond on an
@@ -15,6 +15,7 @@
 
 #pragma once
 #include <array>       // array
+#include <cstdint>     // uint32_t
 #include <glm/glm.hpp> // vec2, vec4
 
 namespace Nezumi::Render {
@@ -32,8 +33,13 @@ struct Quad {
 
     // Tint             {     r,     g,     b,     a }
     glm::vec4 tint    = {  1.0f,  1.0f,  1.0f,  1.0f };
+    // Note: Stays a float vec4: light cookies (LightQuadKind) use tints
+    //       above 1.
+
+    // Layer (page) of the material's array texture that tex_box is on
+    std::uint32_t layer = 0;
 };
 
-static_assert(sizeof(Quad) == 64, "Quad is 64 bytes");
+static_assert(sizeof(Quad) == 68, "Quad is 68 bytes");
 
 } // namespace Nezumi::Render

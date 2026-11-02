@@ -105,7 +105,17 @@ function(nezumi_fetch_dependencies)
         SYSTEM
     )
 
-    FetchContent_MakeAvailable(SDL3 freetype glm stb fastnoiselite)
+    # --------------------------------------------------------------------------
+    # nlohmann/json 3.11.3 (header-only; sprite sheet manifests)
+    # --------------------------------------------------------------------------
+
+    FetchContent_Declare(nlohmann_json
+        URL      https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+        URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d
+        SYSTEM
+    )
+
+    FetchContent_MakeAvailable(SDL3 freetype glm stb fastnoiselite nlohmann_json)
 
     # Expose the source directories of the header-only repos (which have no
     # CMakeLists.txt) to the parent scope so targets can be created below.

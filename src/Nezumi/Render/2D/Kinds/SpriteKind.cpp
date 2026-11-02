@@ -40,7 +40,7 @@ RHI::RenderPipelineHandle SpriteKind::make_pipeline(const RenderContext& ctx, RH
     };
 
     // Setup instance attributes: one Sprite per instance
-    const std::array<RHI::VertexAttribute, 3> instance_attributes = {
+    const std::array<RHI::VertexAttribute, 4> instance_attributes = {
         RHI::VertexAttribute{
             .location = 1,
             .format   = RHI::VertexFormat::Float32x4,
@@ -53,8 +53,13 @@ RHI::RenderPipelineHandle SpriteKind::make_pipeline(const RenderContext& ctx, RH
         },
         RHI::VertexAttribute{
             .location = 3,
-            .format   = RHI::VertexFormat::Float32x4,
+            .format   = RHI::VertexFormat::Unorm8x4,
             .offset   = offsetof(Sprite, tint),
+        },
+        RHI::VertexAttribute{
+            .location = 4,
+            .format   = RHI::VertexFormat::Uint32,
+            .offset   = offsetof(Sprite, layer),
         },
     };
 
