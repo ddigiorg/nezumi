@@ -27,7 +27,7 @@
 //   {
 //     "version": 1,
 //     "page_size": [2048, 2048],
-//     "pages": ["units-0.png", "units-1.png"],          // relative to the manifest
+//     "pages": ["units-0.ktx2", "units-1.ktx2"],        // relative to the manifest
 //     "sprites": [
 //       { "name": "knight/walk/0/0", "page": 0,
 //         "box":    [x0, y0, x1, y1],                    // pixels on the page, y down
@@ -43,7 +43,12 @@
 //   }
 //
 // offset and pivot are in the untrimmed frame (see SpriteRegion.hpp). Every
-// page must be page_size. "headings" defaults to "directions" (no mirroring).
+// page must be page_size.
+//
+// Pages are either all .ktx2 (Ktx2.hpp: block-compressed, mips and
+// premultiplied alpha baked in by the packer, uploaded as stored; BC7 is
+// decoded on the CPU where the GPU lacks it) or all images such as PNG
+// (premultiplied and given config.mip_levels levels on load). "headings" defaults to "directions" (no mirroring).
 // =============================================================================
 
 #pragma once
@@ -53,6 +58,7 @@
 #include "Nezumi/Render/2D/Sprite/SpriteRegion.hpp"
 #include "Nezumi/Render/2D/Sprite/SpriteSheetConfig.hpp"
 #include "Nezumi/Render/Core/Image/Image.hpp"
+#include "Nezumi/Render/Core/Image/Ktx2.hpp"
 #include "Nezumi/Render/Core/Material/MaterialID.hpp"
 #include "Nezumi/Render/Core/RenderContext.hpp"
 #include "Nezumi/RHI/RHI.hpp"
@@ -95,6 +101,14 @@ public:
         RenderContext&          context,
         const SpriteSheetConfig& config,
         std::span<const Image>   pages);
+
+    // Uses textures you already have (e.g. load_ktx2), as stored: their
+    // format and mip levels (config.mip_levels is ignored). All the same
+    // size, format and level count; each contributes its layers.
+    SpriteSheet(
+        RenderContext&           context,
+        const SpriteSheetConfig& config,
+        std::vector<Ktx2Texture> pages);
 
     ~SpriteSheet();
 
@@ -164,7 +178,12 @@ public:
     std::uint32_t      page_width()  const { return page_width_;  }
     std::uint32_t      page_height() const { return page_height_; }
     std::uint32_t      pages()       const { return pages_;       }
-    std::uint32_t      mip_levels()  const { return mip_levels_;  }
+    std::uint32_t      mip_levels()  const { return mip_levels_;  } // as created, after skip_levels
+
+    // True when the pages were block-compressed but the GPU can't sample the
+    // format (BC7 on macOS's GL 4.1), so they were decoded to RGBA8 on load:
+    // same look, 4x the VRAM. Worth a log line.
+    bool               decoded_on_cpu() const { return decoded_on_cpu_; }
 
 private:
 
@@ -172,8 +191,10 @@ private:
     // Helpers
     // -------------------------------------------------------------------------
 
-    void load_manifest_(const SpriteSheetConfig& config, std::vector<Image>& pages);
+    void load_manifest_(const SpriteSheetConfig& config, std::vector<Image>& images,
+                        std::vector<Ktx2Texture>& textures);
     void create_(const SpriteSheetConfig& config, std::span<const Image> pages);
+    void create_(const SpriteSheetConfig& config, std::vector<Ktx2Texture> pages);
     void remove_();
 
     // Transparent hash, so lookups by string_view don't allocate
@@ -196,6 +217,7 @@ private:
     std::uint32_t      page_height_ = 0;
     std::uint32_t      pages_       = 0;
     std::uint32_t      mip_levels_  = 1;
+    bool               decoded_on_cpu_ = false;
 
     std::vector<SpriteRegion> regions_;
     std::vector<Animation>    animations_;

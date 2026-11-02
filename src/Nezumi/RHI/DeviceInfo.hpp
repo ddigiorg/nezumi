@@ -51,6 +51,11 @@ struct DeviceInfo {
     bool supports_spirv_shaders = false;
     bool supports_glsl_shaders  = false;
 
+    // Block-compressed texture formats the GPU samples directly (Format.hpp).
+    // Without one, decode to RGBA8 on the CPU instead.
+    bool supports_bc4           = false;
+    bool supports_bc7           = false;
+
     // -------------------------------------------------------------------------
     // Conventions
     //

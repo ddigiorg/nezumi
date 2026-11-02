@@ -247,6 +247,17 @@ TextureHandle GLDevice::create(const TextureConfig& config) {
             break;
     }
 
+    if (is_compressed(config.format)) {
+        if (config.type != TextureType::Texture2D && config.type != TextureType::Texture2DArray)
+            return fail("block-compressed formats need a Texture2D or Texture2DArray");
+        if (has_any(config.usage, TextureUsageFlags::ColorTarget | TextureUsageFlags::DepthStencilTarget |
+                                  TextureUsageFlags::Storage))
+            return fail("a block-compressed texture can only be sampled and copied to");
+        const bool bc7 = config.format == Format::BC7RGBAUnorm || config.format == Format::BC7RGBAUnormSrgb;
+        if (bc7 && !info_.supports_bc7)                          return fail("the device has no BC7 (BPTC)");
+        if (config.format == Format::BC4RUnorm && !info_.supports_bc4) return fail("the device has no BC4 (RGTC)");
+    }
+
     if (config.width > info_.max_texture_size || config.height > info_.max_texture_size) {
         return fail("larger than the device's max_texture_size");
     }
@@ -296,6 +307,19 @@ TextureHandle GLDevice::create(const TextureConfig& config) {
         const auto h   = static_cast<GLsizei>(mip_extent(config.height, level));
         const auto d   = static_cast<GLsizei>(config.type == TextureType::Texture3D
                                                   ? mip_extent(layers, level) : layers);
+
+        // Compressed levels are allocated with their byte size and no data
+        if (is_compressed(config.format)) {
+            const auto bytes = static_cast<GLsizei>(get_image_size(
+                config.format, static_cast<std::uint32_t>(w), static_cast<std::uint32_t>(h),
+                static_cast<std::uint32_t>(d)));
+            if (config.type == TextureType::Texture2D) {
+                glCompressedTexImage2D(GL_TEXTURE_2D, mip, internal, w, h, 0, bytes, nullptr);
+            } else {
+                glCompressedTexImage3D(texture.target, mip, internal, w, h, d, 0, bytes, nullptr);
+            }
+            continue;
+        }
 
         switch (config.type) {
             case TextureType::Texture1D:
@@ -413,7 +437,20 @@ std::size_t GLDevice::resolve_region_(
         return fail("region extends past the edge of the mip level");
     }
 
-    const std::uint32_t bpp       = get_format_info(texture.format).bytes_per_pixel;
+    // Compressed regions cover whole blocks, except where they reach the
+    // level's edge (a level smaller than a block is one partial block)
+    if (is_compressed(texture.format)) {
+        const std::uint32_t b = get_format_info(texture.format).block_size;
+        if (in.x % b != 0 || in.y % b != 0)
+            return fail("a compressed region must start on a block boundary");
+        if ((out.width % b != 0 && in.x + out.width != mip_w) ||
+            (out.height % b != 0 && in.y + out.height != mip_h))
+            return fail("a compressed region must cover whole blocks");
+        if (in.bytes_per_row != 0)
+            return fail("compressed data must be tightly packed (bytes_per_row = 0)");
+    }
+
+    const std::uint32_t bpp       = get_format_info(texture.format).bytes_per_block;
     const std::uint64_t tight_row = get_row_size(texture.format, out.width);
     if (in.bytes_per_row != 0) {
         if (in.bytes_per_row % bpp != 0)
@@ -423,7 +460,7 @@ std::size_t GLDevice::resolve_region_(
     }
 
     const std::uint64_t pitch    = in.bytes_per_row ? in.bytes_per_row : tight_row;
-    const std::uint64_t required = pitch * out.height * out.depth_or_layers;
+    const std::uint64_t required = pitch * get_block_count(texture.format, out.height) * out.depth_or_layers;
     if (data.size() < required) {
         logger_->error("write_texture('{}'): data is {} bytes, region needs {}",
                        texture.name, data.size(), required);
@@ -441,7 +478,7 @@ void GLDevice::upload_texture_(
     const GLUploadFormat upload = to_gl_upload_format(texture.format);
 
     // GL_UNPACK_ROW_LENGTH is in pixels; 0 means tightly packed.
-    const std::uint32_t bpp        = get_format_info(texture.format).bytes_per_pixel;
+    const std::uint32_t bpp        = get_format_info(texture.format).bytes_per_block;
     const auto          row_length = static_cast<GLint>(region.bytes_per_row / bpp);
     if (row_length) glPixelStorei(GL_UNPACK_ROW_LENGTH, row_length);
 
@@ -454,6 +491,19 @@ void GLDevice::upload_texture_(
     const auto d   = static_cast<GLsizei>(region.depth_or_layers);
 
     glBindTexture(texture.target, texture.id);
+
+    if (is_compressed(texture.format)) {
+        // resolve_region_ allows only 2D and 2D arrays, tightly packed
+        const GLenum  internal = to_gl_internal_format(texture.format);
+        const auto    bytes    = static_cast<GLsizei>(get_image_size(
+            texture.format, region.width, region.height, region.depth_or_layers));
+        if (texture.type == TextureType::Texture2D) {
+            glCompressedTexSubImage2D(GL_TEXTURE_2D, mip, x, y, w, h, internal, bytes, data);
+        } else {
+            glCompressedTexSubImage3D(texture.target, mip, x, y, z, w, h, d, internal, bytes, data);
+        }
+        return;
+    }
 
     switch (texture.type) {
         case TextureType::Texture1D:

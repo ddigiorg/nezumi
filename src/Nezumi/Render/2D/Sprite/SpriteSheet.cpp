@@ -6,6 +6,7 @@
 
 #include "Nezumi/Core/BasePath.hpp"
 #include "Nezumi/Render/Core/Material/MaterialTable.hpp"
+#include "Nezumi/RHI/Common/FormatInfo.hpp"
 #include <algorithm>  // max, min
 #include <cmath>      // floor
 #include <filesystem> // path
@@ -48,9 +49,11 @@ SpriteSheet::SpriteSheet(RenderContext& context, const SpriteSheetConfig& config
     : context_(&context)
     , name_(config.name)
 {
-    std::vector<Image> pages;
-    load_manifest_(config, pages);
-    create_(config, pages);
+    std::vector<Image>       images;
+    std::vector<Ktx2Texture> textures;
+    load_manifest_(config, images, textures);
+    if (!textures.empty()) create_(config, std::move(textures));
+    else                   create_(config, images);
 }
 
 SpriteSheet::SpriteSheet(
@@ -61,6 +64,16 @@ SpriteSheet::SpriteSheet(
         , name_(config.name)
 {
     create_(config, pages);
+}
+
+SpriteSheet::SpriteSheet(
+    RenderContext&           context,
+    const SpriteSheetConfig& config,
+    std::vector<Ktx2Texture> pages)
+        : context_(&context)
+        , name_(config.name)
+{
+    create_(config, std::move(pages));
 }
 
 SpriteSheet::~SpriteSheet() {
@@ -148,7 +161,11 @@ Sprite SpriteSheet::sprite_at(SpriteID id, glm::vec2 anchor, float scale, bool m
 // Helpers
 // -----------------------------------------------------------------------------
 
-void SpriteSheet::load_manifest_(const SpriteSheetConfig& config, std::vector<Image>& pages) {
+void SpriteSheet::load_manifest_(
+    const SpriteSheetConfig&  config,
+    std::vector<Image>&       images,
+    std::vector<Ktx2Texture>& textures)
+{
     const std::filesystem::path path = BasePath::get(config.manifest);
 
     std::ifstream file(path);
@@ -169,16 +186,28 @@ void SpriteSheet::load_manifest_(const SpriteSheetConfig& config, std::vector<Im
         const auto& page_files = j.at("pages");
         if (!page_files.is_array() || page_files.empty()) fail(name_, "'pages' must list at least one image");
 
+        // .ktx2 pages are used as stored (format, mips); anything else is an
+        // image that gets a premultiplied mip chain on load. One kind per sheet.
         for (const Json& p : page_files) {
             const std::filesystem::path page_path = path.parent_path() / p.get<std::string>();
-            pages.push_back(load_image(page_path.string()));
-            const Image& img = pages.back();
-            if (float(img.width) != page_size.x || float(img.height) != page_size.y) {
-                fail(name_, "page '" + page_path.string() + "' is " + std::to_string(img.width) + "x" +
-                            std::to_string(img.height) + ", not page_size");
+            std::uint32_t w = 0, h = 0;
+            if (page_path.extension() == ".ktx2") {
+                textures.push_back(load_ktx2(page_path.string()));
+                if (textures.back().layers != 1) fail(name_, "page '" + page_path.string() + "' has more than one layer");
+                w = textures.back().width;
+                h = textures.back().height;
+            } else {
+                images.push_back(load_image(page_path.string()));
+                w = images.back().width;
+                h = images.back().height;
+            }
+            if (!images.empty() && !textures.empty()) fail(name_, "pages mix .ktx2 and image files");
+            if (float(w) != page_size.x || float(h) != page_size.y) {
+                fail(name_, "page '" + page_path.string() + "' is " + std::to_string(w) + "x" +
+                            std::to_string(h) + ", not page_size");
             }
         }
-        const auto page_count = static_cast<std::uint32_t>(pages.size());
+        const auto page_count = static_cast<std::uint32_t>(images.size() + textures.size());
 
         // Sprites
         if (j.contains("sprites")) {
@@ -235,49 +264,102 @@ void SpriteSheet::load_manifest_(const SpriteSheetConfig& config, std::vector<Im
     }
 }
 
-void SpriteSheet::create_(const SpriteSheetConfig& config, std::span<const Image> pages) {
-    RHI::Device& device = *context_->device;
+// RGBA8 page -> premultiplied mip chain of `levels` levels (see
+// SpriteSheetConfig.hpp)
+static Ktx2Texture chain_from_image(const Image& page, std::uint32_t levels) {
+    Ktx2Texture t;
+    t.format        = RHI::Format::RGBA8Unorm;
+    t.width         = page.width;
+    t.height        = page.height;
+    t.premultiplied = true;
+    t.levels.resize(levels);
 
+    Image level = page;
+    premultiply_alpha(level);
+    for (std::uint32_t m = 0; m < levels; ++m) {
+        if (m > 0) level = half_size(level);
+        const auto bytes = std::as_bytes(std::span(level.pixels));
+        t.levels[m].assign(bytes.begin(), bytes.end());
+    }
+    return t;
+}
+
+void SpriteSheet::create_(const SpriteSheetConfig& config, std::span<const Image> pages) {
     if (pages.empty()) fail(name_, "no pages");
-    page_width_  = pages[0].width;
-    page_height_ = pages[0].height;
-    pages_       = static_cast<std::uint32_t>(pages.size());
     for (const Image& p : pages) {
         if (p.empty()) fail(name_, "empty page");
-        if (p.width != page_width_ || p.height != page_height_) fail(name_, "pages differ in size");
+        if (p.width != pages[0].width || p.height != pages[0].height) fail(name_, "pages differ in size");
     }
 
     // Number of mip levels: 0 = the full chain, otherwise capped at it
     std::uint32_t full_chain = 1;
-    for (std::uint32_t s = std::max(page_width_, page_height_); s > 1; s /= 2) ++full_chain;
-    mip_levels_ = (config.mip_levels == 0) ? full_chain : std::min(config.mip_levels, full_chain);
+    for (std::uint32_t s = std::max(pages[0].width, pages[0].height); s > 1; s /= 2) ++full_chain;
+    const std::uint32_t levels = (config.mip_levels == 0) ? full_chain : std::min(config.mip_levels, full_chain);
 
-    // Mip chains, premultiplied (see SpriteSheetConfig.hpp), each level holding
-    // every layer back to back, as texture uploads expect
-    std::vector<std::vector<std::uint8_t>> levels(mip_levels_);
-    for (const Image& page : pages) {
-        Image level = page;
-        premultiply_alpha(level);
-        for (std::uint32_t m = 0; m < mip_levels_; ++m) {
-            if (m > 0) level = half_size(level);
-            levels[m].insert(levels[m].end(), level.pixels.begin(), level.pixels.end());
+    std::vector<Ktx2Texture> chains;
+    chains.reserve(pages.size());
+    for (const Image& p : pages) chains.push_back(chain_from_image(p, levels));
+    create_(config, std::move(chains));
+}
+
+void SpriteSheet::create_(const SpriteSheetConfig& config, std::vector<Ktx2Texture> pages) {
+    RHI::Device& device = *context_->device;
+
+    if (pages.empty()) fail(name_, "no pages");
+    const Ktx2Texture& first = pages[0];
+    for (const Ktx2Texture& p : pages) {
+        if (p.width != first.width || p.height != first.height) fail(name_, "pages differ in size");
+        if (p.format != first.format)                           fail(name_, "pages differ in format");
+        if (p.levels.size() != first.levels.size())             fail(name_, "pages differ in mip levels");
+        if (p.levels.empty())                                   fail(name_, "a page has no data");
+        const bool has_alpha = RHI::get_format_info(p.format).channel_count == 4;
+        if (has_alpha && !p.premultiplied) fail(name_, "RGBA pages must be premultiplied (see SpriteSheetConfig.hpp)");
+    }
+
+    // Logical size: what manifest pixel boxes and tex_box() refer to, even
+    // when the largest levels are skipped
+    page_width_  = first.width;
+    page_height_ = first.height;
+
+    // One layer per page. Skipping levels drops the largest ones (the low
+    // res setting); UVs don't change.
+    const auto     total = static_cast<std::uint32_t>(first.levels.size());
+    const auto     skip  = std::min(config.skip_levels, total - 1);
+    std::uint32_t  layers = 0;
+    for (const Ktx2Texture& p : pages) layers += p.layers;
+    pages_      = layers;
+    mip_levels_ = total - skip;
+
+    // A GPU that can't sample the format gets it decoded here instead
+    const RHI::DeviceInfo& info = device.info();
+    const bool bc7 = first.format == RHI::Format::BC7RGBAUnorm || first.format == RHI::Format::BC7RGBAUnormSrgb;
+    if ((bc7 && !info.supports_bc7) || (first.format == RHI::Format::BC4RUnorm && !info.supports_bc4)) {
+        for (Ktx2Texture& p : pages) p = decompress(std::move(p));
+        decoded_on_cpu_ = true;
+    }
+    const RHI::Format format = pages[0].format;
+
+    // Each level holds every layer back to back, as texture uploads expect
+    std::vector<std::vector<std::byte>> levels(mip_levels_);
+    for (std::uint32_t m = 0; m < mip_levels_; ++m) {
+        for (const Ktx2Texture& p : pages) {
+            levels[m].insert(levels[m].end(), p.levels[skip + m].begin(), p.levels[skip + m].end());
         }
     }
 
-    // Texture: one layer per page
     texture_ = device.create(
         RHI::TextureConfig{
             .name            = name_,
             .type            = RHI::TextureType::Texture2DArray,
-            .format          = RHI::Format::RGBA8Unorm,
-            .width           = page_width_,
-            .height          = page_height_,
+            .format          = format,
+            .width           = first.level_width(skip),
+            .height          = first.level_height(skip),
             .depth_or_layers = pages_,
             .mip_levels      = mip_levels_,
             .usage           = (mip_levels_ > 1)
                 ? RHI::TextureUsageFlags::Sampled | RHI::TextureUsageFlags::CopyDst
                 : RHI::TextureUsageFlags::Sampled,
-            .initial_data    = std::as_bytes(std::span(levels[0])),
+            .initial_data    = std::span<const std::byte>(levels[0]),
         }
     );
     if (!texture_) {
@@ -289,7 +371,7 @@ void SpriteSheet::create_(const SpriteSheetConfig& config, std::span<const Image
         device.write_texture(
             texture_,
             RHI::TextureRegion{ .mip_level = m, .depth_or_layers = pages_ }, // every layer of level m
-            std::as_bytes(std::span(levels[m]))
+            std::span<const std::byte>(levels[m])
         );
     }
 
