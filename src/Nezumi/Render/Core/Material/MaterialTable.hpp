@@ -8,6 +8,11 @@
 // Material ids are small (16 bits) and recycled after remove(). 0 means "no
 // material" and is never handed out.
 //
+// Every material texture is a Texture2DArray (a single image is a one-layer
+// array), so every textured shader samples a sampler2DArray, and a draw picks
+// its page with a per-instance layer index. Draws on different layers of the
+// same material still batch.
+//
 // Every texture/sampler call into the RHI lives in MaterialTable.cpp.
 // =============================================================================
 

@@ -70,16 +70,17 @@
 //   - MaterialTable owns only bind groups (texture + sampler).
 //   - SpriteAtlas and Font own their textures and samplers, and clean up
 //     on failure.
-//   - SpriteAtlas loads one image with named regions, per-sprite boxes
-//     and pivots.
+//   - SpriteSheet loads array pages plus a manifest of named sprites
+//     (trimmed boxes, pivots) and animations (frames x directions, mirrored
+//     headings). Atlas (one image) is deprecated.
 //   - Font uses a FreeType SDF glyph atlas with fallback glyphs; text
 //     layout supports alignment and measurement.
 //
 // ## Future Improvements
 //
-// 1.  Texture2DArray atlases. Put all atlas pages in one array texture, with
-//     the page index in the instance data. Material switches disappear for
-//     sprites, which fixes the worst-case draw-call explosion.
+// 1.  Texture arrays everywhere: done. Every material texture is a
+//     Texture2DArray and sprites carry a layer, so a SpriteSheet's pages
+//     batch together. Next: pack more of a game's sprites into one sheet.
 // 2.  View-space culling. Skip off-screen objects before submission
 //     (spatial grid / chunk lists on the game side).
 // 3.  Retained static layers. Cache tile / terrain instance buffers and
@@ -88,8 +89,8 @@
 //     can't see overdraw or fill-rate cost.
 // 5.  Persistently mapped, triple-buffered stream buffer. Avoids implicit
 //     syncs when writing a chunk the GPU is still reading.
-// 6.  RGBA8 instance colors. Shrinks Sprite from 48 to 36 bytes (less
-//     bandwidth); unpack in the shader.
+// 6.  RGBA8 instance colors: done for Sprite (40 bytes with its layer).
+//     Shapes could follow.
 // 7.  Mip padding in a packer. Atlas generates premultiplied mips
 //     (AtlasConfig::mip_levels), but sprites must be laid out on a 2^(n-1)
 //     grid by hand; an atlas builder (#8) should pad/extrude for it.
@@ -109,6 +110,8 @@
 #include "Nezumi/Object/SlotMap.hpp"
 #include "Nezumi/Render/2D/Atlas/Atlas.hpp"
 #include "Nezumi/Render/2D/Atlas/AtlasConfig.hpp"
+#include "Nezumi/Render/2D/Sprite/SpriteSheet.hpp"
+#include "Nezumi/Render/2D/Sprite/SpriteSheetConfig.hpp"
 #include "Nezumi/Render/2D/Batch/BatchBuilder.hpp"
 #include "Nezumi/Render/2D/Batch/SortKey.hpp"
 #include "Nezumi/Render/2D/Camera/Camera2D.hpp"
@@ -191,7 +194,15 @@ public:
     // Creates long-lived resources.
     // -------------------------------------------------------------------------
 
+    // Deprecated: use create_sprite_sheet (an image-only SpriteSheet does
+    // what an Atlas does). Atlas goes away once the examples and Nightmourn
+    // have moved over.
     SlotMap<Atlas >::Pair create_atlas (const AtlasConfig&  config);
+
+    // From config.manifest, or from images you already have (one per layer)
+    SlotMap<SpriteSheet>::Pair create_sprite_sheet(const SpriteSheetConfig& config);
+    SlotMap<SpriteSheet>::Pair create_sprite_sheet(const SpriteSheetConfig& config,
+                                                   std::span<const Image> pages);
     SlotMap<Camera2D>::Pair create_camera(const CameraConfig& config);
     SlotMap<Font  >::Pair create_font  (const FontConfig&   config);
 
@@ -202,6 +213,7 @@ public:
     // -------------------------------------------------------------------------
 
     void remove_atlas (Handle<Atlas > handle);
+    void remove_sprite_sheet(Handle<SpriteSheet> handle);
     void remove_camera(Handle<Camera2D> handle);
     void remove_font  (Handle<Font  > handle);
 
@@ -212,6 +224,7 @@ public:
     // -------------------------------------------------------------------------
 
     Atlas*  get_atlas (Handle<Atlas > handle);
+    SpriteSheet* get_sprite_sheet(Handle<SpriteSheet> handle);
     Camera2D* get_camera(Handle<Camera2D> handle);
     Font*   get_font  (Handle<Font  > handle);
 
@@ -362,6 +375,7 @@ private:
     KindRegistry kinds_;
 
     SlotMap<Atlas   > atlases_;
+    SlotMap<SpriteSheet> sprite_sheets_;
     SlotMap<Camera2D> cameras_;
     SlotMap<Font    > fonts_;
 

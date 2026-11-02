@@ -14,7 +14,7 @@
 // The font atlas, bound as the material's texture. MaterialTable's bind group
 // layout names it, and the GL backend assigns its texture unit from that (see
 // GLLimits.hpp).
-uniform sampler2D u_texture;
+uniform sampler2DArray u_texture; // the font's glyph atlas, one layer
 
 in vec2 v_tex;
 in vec4 v_color;
@@ -40,8 +40,8 @@ void main() {
     vec2  offset        = v_params.zw;
 
     // Signed distance in SDF value units; > 0 inside.
-    float d_fill    = texture(u_texture, v_tex).r - 0.5 + weight;
-    float d_outline = texture(u_texture, v_tex - offset).r - 0.5 + weight + outline_width;
+    float d_fill    = texture(u_texture, vec3(v_tex, 0.0)).r - 0.5 + weight;
+    float d_outline = texture(u_texture, vec3(v_tex - offset, 0.0)).r - 0.5 + weight + outline_width;
 
     float fill    = coverage(d_fill)    * v_color.a;
     float outline = coverage(d_outline) * v_outline_color.a;

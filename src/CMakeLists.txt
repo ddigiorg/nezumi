@@ -131,6 +131,7 @@ target_link_libraries(nezumi_rhi
 
 add_library(nezumi_render STATIC
     Nezumi/Render/2D/Atlas/Atlas.cpp
+    Nezumi/Render/2D/Sprite/SpriteSheet.cpp
     Nezumi/Render/Core/Image/Image.cpp
     Nezumi/Render/2D/Batch/BatchBuilder.cpp
     Nezumi/Render/Core/View/ViewBindings.cpp
@@ -168,6 +169,7 @@ target_link_libraries(nezumi_render
     PRIVATE
         Freetype::Freetype
         nezumi_stb
+        nlohmann_json::nlohmann_json
 )
 
 # ------------------------------------------------------------------------------

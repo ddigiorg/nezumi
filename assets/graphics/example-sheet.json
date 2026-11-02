@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "page_size": [640, 384],
+  "pages": ["atlas.png", "example-sheet-1.png"],
+  "sprites": [
+    {"name": "figure/red/down", "page": 0, "box": [8, 8, 56, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/red/down-right", "page": 0, "box": [72, 8, 120, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/red/right", "page": 0, "box": [136, 8, 184, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/red/up-right", "page": 0, "box": [200, 8, 248, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/red/up", "page": 0, "box": [264, 8, 312, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/purple/down", "page": 0, "box": [328, 8, 376, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/purple/down-right", "page": 0, "box": [392, 8, 440, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/purple/right", "page": 0, "box": [456, 8, 504, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/purple/up-right", "page": 0, "box": [520, 8, 568, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/purple/up", "page": 0, "box": [584, 8, 632, 120], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/blue/down", "page": 0, "box": [8, 136, 56, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/blue/down-right", "page": 0, "box": [72, 136, 120, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/blue/right", "page": 0, "box": [136, 136, 184, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/blue/up-right", "page": 0, "box": [200, 136, 248, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/blue/up", "page": 0, "box": [264, 136, 312, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/cyan/down", "page": 0, "box": [328, 136, 376, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/cyan/down-right", "page": 0, "box": [392, 136, 440, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/cyan/right", "page": 0, "box": [456, 136, 504, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/cyan/up-right", "page": 0, "box": [520, 136, 568, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "figure/cyan/up", "page": 0, "box": [584, 136, 632, 248], "offset": [8, 8], "pivot": [32, 120]},
+    {"name": "logo", "page": 1, "box": [16, 53, 624, 330]}
+  ],
+  "animations": [
+    {"name": "figure/red/turn", "first": 0, "frames": 1, "directions": 5, "headings": 8},
+    {"name": "figure/red/cycle", "first": 0, "frames": 5, "fps": 2, "loop": true},
+    {"name": "figure/purple/turn", "first": 5, "frames": 1, "directions": 5, "headings": 8},
+    {"name": "figure/purple/cycle", "first": 5, "frames": 5, "fps": 2, "loop": true},
+    {"name": "figure/blue/turn", "first": 10, "frames": 1, "directions": 5, "headings": 8},
+    {"name": "figure/blue/cycle", "first": 10, "frames": 5, "fps": 2, "loop": true},
+    {"name": "figure/cyan/turn", "first": 15, "frames": 1, "directions": 5, "headings": 8},
+    {"name": "figure/cyan/cycle", "first": 15, "frames": 5, "fps": 2, "loop": true}
+  ]
+}

@@ -211,6 +211,17 @@ SlotMap<Atlas>::Pair Renderer2D::create_atlas(const AtlasConfig& config) {
     return atlases_.create(core_.context(), config);
 }
 
+SlotMap<SpriteSheet>::Pair Renderer2D::create_sprite_sheet(const SpriteSheetConfig& config) {
+    return sprite_sheets_.create(core_.context(), config);
+}
+
+SlotMap<SpriteSheet>::Pair Renderer2D::create_sprite_sheet(
+    const SpriteSheetConfig& config,
+    std::span<const Image>   pages)
+{
+    return sprite_sheets_.create(core_.context(), config, pages);
+}
+
 SlotMap<Camera2D>::Pair Renderer2D::create_camera(const CameraConfig& config) {
     return cameras_.create(config);
 }
@@ -227,6 +238,10 @@ void Renderer2D::remove_atlas(Handle<Atlas> handle) {
     atlases_.remove(handle);
 }
 
+void Renderer2D::remove_sprite_sheet(Handle<SpriteSheet> handle) {
+    sprite_sheets_.remove(handle);
+}
+
 void Renderer2D::remove_camera(Handle<Camera2D> handle) {
     cameras_.remove(handle);
 }
@@ -241,6 +256,10 @@ void Renderer2D::remove_font(Handle<Font> handle) {
 
 Atlas* Renderer2D::get_atlas(Handle<Atlas> handle) {
     return atlases_.get(handle);
+}
+
+SpriteSheet* Renderer2D::get_sprite_sheet(Handle<SpriteSheet> handle) {
+    return sprite_sheets_.get(handle);
 }
 
 Camera2D* Renderer2D::get_camera(Handle<Camera2D> handle) {

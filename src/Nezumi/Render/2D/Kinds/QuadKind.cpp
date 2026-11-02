@@ -46,7 +46,7 @@ RHI::RenderPipelineHandle QuadKind::make_pipeline_with(
 
     // Setup instance attributes: one Quad per instance. The 4 corners go in
     // as two vec4s (corners 0-1 and 2-3).
-    const std::array<RHI::VertexAttribute, 4> instance_attributes = {
+    const std::array<RHI::VertexAttribute, 5> instance_attributes = {
         RHI::VertexAttribute{
             .location = 1,
             .format   = RHI::VertexFormat::Float32x4,
@@ -66,6 +66,11 @@ RHI::RenderPipelineHandle QuadKind::make_pipeline_with(
             .location = 4,
             .format   = RHI::VertexFormat::Float32x4,
             .offset   = offsetof(Quad, tint),
+        },
+        RHI::VertexAttribute{
+            .location = 5,
+            .format   = RHI::VertexFormat::Uint32,
+            .offset   = offsetof(Quad, layer),
         },
     };
 

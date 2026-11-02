@@ -13,10 +13,12 @@ layout(std140) uniform Frame {
 layout(location = 0) in vec2 v_pos;     // vertex   {x, y} and {u, v}
 layout(location = 1) in vec4 i_pos_box; // instance {min_x, min_y, max_x, max_y} (world, y up)
 layout(location = 2) in vec4 i_tex_box; // instance {min_u, min_v, max_u, max_v} (v = 0 at image top)
-layout(location = 3) in vec4 i_tint;    // instance {r, g, b, a}
+layout(location = 3) in vec4 i_tint;    // instance {r, g, b, a} (RGBA8, normalized)
+layout(location = 4) in uint i_layer;   // instance array layer
 
 out vec2 v_tex;
 out vec4 v_tint;
+flat out float v_layer;
 
 void main() {
     vec2 world = mix(i_pos_box.xy, i_pos_box.zw, v_pos);
@@ -27,7 +29,8 @@ void main() {
         mix(i_tex_box.x, i_tex_box.z, v_pos.x),
         mix(i_tex_box.w, i_tex_box.y, v_pos.y));
 
-    v_tint = i_tint;
+    v_tint  = i_tint;
+    v_layer = float(i_layer);
 
     gl_Position = view_proj * vec4(world, 0.0, 1.0);
 }

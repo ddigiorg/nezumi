@@ -307,7 +307,7 @@ void Font::create_(const FontConfig& config, std::span<const std::byte> data) {
     texture_ = device.create(
         RHI::TextureConfig{
             .name         = name,
-            .type         = RHI::TextureType::Texture2D,
+            .type         = RHI::TextureType::Texture2DArray, // one layer; every material texture is an array
             .format       = RHI::Format::R8Unorm,
             .width        = width,
             .height       = height,
