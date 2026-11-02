@@ -11,7 +11,7 @@ namespace Nezumi::BasePath {
 
 // TODO: might not be appropriate to put in Core/ since it requires SDL
 
-// Returns <executable directory>/assets/<relative>. An absolute path is
+// Returns <executable directory>/<relative>. An absolute path is
 // returned unchanged, so callers can still load from anywhere on disk.
 inline std::filesystem::path get(std::string_view relative) {
     static const std::filesystem::path root = [] {

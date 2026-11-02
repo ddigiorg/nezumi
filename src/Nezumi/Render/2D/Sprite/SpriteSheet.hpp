@@ -5,8 +5,9 @@
 // named sprites and animations. One texture, one sampler, one material: every
 // sprite on every page batches with every other.
 //
-// Loaded from a manifest a packer writes (format below), or made from images
-// you already have (no named sprites; address them with tex_box()). Texels
+// Made from loose images packed at load time (SpritePacker.hpp), loaded from
+// a manifest an offline packer writes (format below), or made from page
+// images you already have (no named sprites; address them with tex_box()). Texels
 // are stored premultiplied (see SpriteSheetConfig.hpp).
 //
 // Texel convention: v = 0 is the TOP row of a page, as stored in the file.
@@ -56,6 +57,7 @@
 #include "Nezumi/Render/2D/Sprite/Animation.hpp"
 #include "Nezumi/Render/2D/Sprite/SpriteID.hpp"
 #include "Nezumi/Render/2D/Sprite/SpriteRegion.hpp"
+#include "Nezumi/Render/2D/Sprite/SpritePacker.hpp"
 #include "Nezumi/Render/2D/Sprite/SpriteSheetConfig.hpp"
 #include "Nezumi/Render/Core/Image/Image.hpp"
 #include "Nezumi/Render/Core/Image/Ktx2.hpp"
@@ -94,6 +96,14 @@ public:
 
     // Loads config.manifest and its pages. Throws on any error.
     SpriteSheet(RenderContext& context, const SpriteSheetConfig& config);
+
+    // Packs `packer`'s sprites and animations (SpritePacker.hpp) on the grid
+    // config.mip_levels needs, 2^(mip_levels - 1) px, so mip_levels can't be
+    // 0. config.manifest is ignored.
+    SpriteSheet(
+        RenderContext&           context,
+        const SpriteSheetConfig& config,
+        const SpritePacker&      packer);
 
     // Uses images you already have, one per layer, all the same size;
     // config.manifest is ignored. No named sprites: use tex_box().

@@ -70,9 +70,11 @@
 //   - MaterialTable owns only bind groups (texture + sampler).
 //   - SpriteSheet and Font own their textures and samplers, and clean up
 //     on failure.
-//   - SpriteSheet loads array pages plus a manifest of named sprites
-//     (trimmed boxes, pivots) and animations (frames x directions, mirrored
-//     headings), or takes images you already have.
+//   - SpriteSheet holds named sprites (trimmed boxes, pivots) and
+//     animations (frames x directions, mirrored headings) on array pages:
+//     packed at load from loose images (SpritePacker: one image per sprite
+//     or per animation), loaded from a manifest, or from page images you
+//     already have.
 //   - Sheet pages ship as KTX2 (Ktx2.hpp): BC7 (or BC4 for masks) with
 //     premultiplied mips baked in, uploaded as stored, and decoded on the
 //     CPU where the GPU lacks BPTC. SpriteSheetConfig::skip_levels drops the
@@ -95,12 +97,11 @@
 //     syncs when writing a chunk the GPU is still reading.
 // 6.  RGBA8 instance colors: done for Sprite (40 bytes with its layer).
 //     Shapes could follow.
-// 7.  Mip padding in a packer: done in Nightmourn's tools/pack_sprites.py
-//     (SpriteSheetConfig::mip_levels needs a 2^(n-1) px grid). Edge
-//     extrusion for opaque-edged sprites could follow.
-// 8.  Sheet builder: Nightmourn's tools/pack_sprites.py packs loose images
-//     into pages offline. Move it into Nezumi's tools if a second game
-//     needs it.
+// 7.  Mip padding in a packer: done in SpritePacker (SpriteSheetConfig::
+//     mip_levels needs a 2^(n-1) px grid). Edge extrusion for opaque-edged
+//     sprites could follow.
+// 8.  Sheet builder: done, SpritePacker packs at load. Next: cache the
+//     packed, compressed pages on disk (KTX2) if load time grows.
 // 9.  Faster font loading. Bitmap -> SDF path (bsdf), multithreaded glyph
 //     rendering, and an on-disk atlas cache.
 // 10. Non-instanced kinds (DrawMode). Support kinds with arbitrary vertex
@@ -197,8 +198,11 @@ public:
     // Creates long-lived resources.
     // -------------------------------------------------------------------------
 
-    // From config.manifest, or from images you already have (one per layer)
+    // From config.manifest, from sprites packed at load (SpritePacker), or
+    // from images you already have (one per layer)
     SlotMap<SpriteSheet>::Pair create_sprite_sheet(const SpriteSheetConfig& config);
+    SlotMap<SpriteSheet>::Pair create_sprite_sheet(const SpriteSheetConfig& config,
+                                                   const SpritePacker&      packer);
     SlotMap<SpriteSheet>::Pair create_sprite_sheet(const SpriteSheetConfig& config,
                                                    std::span<const Image> pages);
     SlotMap<Camera2D>::Pair create_camera(const CameraConfig& config);

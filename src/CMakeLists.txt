@@ -130,6 +130,7 @@ target_link_libraries(nezumi_rhi
 # ------------------------------------------------------------------------------
 
 add_library(nezumi_render STATIC
+    Nezumi/Render/2D/Sprite/SpritePacker.cpp
     Nezumi/Render/2D/Sprite/SpriteSheet.cpp
     Nezumi/Render/Core/Image/Image.cpp
     Nezumi/Render/Core/Image/Ktx2.cpp
