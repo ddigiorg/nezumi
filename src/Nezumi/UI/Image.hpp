@@ -1,11 +1,11 @@
 // =============================================================================
 // UI/Image.hpp
 //
-// A picture the UI can draw: one sprite from a Render::Atlas. A slot's frame,
+// A picture the UI can draw: one sprite from a Render::SpriteSheet. A slot's frame,
 // an item's icon, a button's glyph, a decoration. Small and copyable, so a
 // game keeps its UI images in a table and hands them out every frame.
 //
-//   const UI::Image eagle = UI::Image::from(*atlas, { 0, 0, 192, 208 }, 2.0f);
+//   const UI::Image eagle = UI::Image::from(*sheet, sheet->sprite("eagle"), 2.0f);
 //   ui.image(eagle);                                // at its natural size
 //   ui.draw_image(rect, eagle.flipped_x());         // anywhere, any size
 //
@@ -18,7 +18,7 @@
 // one axis, and the middle stretches both ways. For panel backplates, slot
 // frames and buttons.
 //
-//   const UI::NineSlice plate = { UI::Image::from(*atlas, box, 2.0f), { 24, 24, 24, 24 } };
+//   const UI::NineSlice plate = { UI::Image::from(*sheet, sheet->sprite("plate"), 2.0f), { 24, 24, 24, 24 } };
 //   ui.draw_nine_slice(rect, plate);
 //
 // Images and text use different textures, so a panel that mixes them draws
@@ -26,7 +26,6 @@
 // =============================================================================
 
 #pragma once
-#include "Nezumi/Render/2D/Atlas/Atlas.hpp"
 #include "Nezumi/Render/2D/Sprite/SpriteSheet.hpp"
 #include <cstdint>     // uint32_t
 #include "Nezumi/Render/Core/Material/MaterialID.hpp"
@@ -37,18 +36,9 @@ namespace Nezumi::UI {
 
 struct Image {
     Render::MaterialID material = Render::Material::None; // None: no image
-    glm::vec4          tex_box  = { 0.0f, 0.0f, 1.0f, 1.0f }; // atlas UVs { min_u, min_v, max_u, max_v }, v down
+    glm::vec4          tex_box  = { 0.0f, 0.0f, 1.0f, 1.0f }; // page UVs { min_u, min_v, max_u, max_v }, v down
     glm::vec2          size     = { 0.0f, 0.0f };             // natural size, points
     std::uint32_t      layer    = 0;                          // the material's array layer
-
-    // `pixel_box`: { x0, y0, x1, y1 } in the atlas image, y down
-    static Image from(const Render::Atlas& atlas, glm::vec4 pixel_box, float density = 1.0f) {
-        return {
-            .material = atlas.material(),
-            .tex_box  = atlas.tex_box(pixel_box),
-            .size     = glm::vec2(pixel_box.z - pixel_box.x, pixel_box.w - pixel_box.y) / density,
-        };
-    }
 
     // A sheet's sprite at its stored (trimmed) size
     static Image from(const Render::SpriteSheet& sheet, Render::SpriteID sprite, float density = 1.0f) {
@@ -61,7 +51,7 @@ struct Image {
         };
     }
 
-    // `pixel_box` on page `layer` of a sheet without named sprites
+    // `pixel_box` ({ x0, y0, x1, y1 }, y down) on page `layer` of a sheet
     static Image from(const Render::SpriteSheet& sheet, glm::vec4 pixel_box,
                       float density = 1.0f, std::uint32_t layer = 0)
     {

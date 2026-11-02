@@ -7,7 +7,11 @@
 //
 // Loaded from a manifest a packer writes (format below), or made from images
 // you already have (no named sprites; address them with tex_box()). Texels
-// are stored premultiplied, as in Atlas.
+// are stored premultiplied (see SpriteSheetConfig.hpp).
+//
+// Texel convention: v = 0 is the TOP row of a page, as stored in the file.
+// Pages are never flipped; the sprite shader maps a quad's bottom edge to
+// the sprite's bottom row.
 //
 //   SpriteSheet& units = *renderer.create_sprite_sheet({
 //       .name = "units", .manifest = "assets/graphics/units.json", .mip_levels = 4 }).object;

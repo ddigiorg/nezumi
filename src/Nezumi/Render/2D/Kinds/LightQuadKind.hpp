@@ -9,7 +9,7 @@
 //
 //   renderer.draw_light_quad(Quad{ .corners = cone, .tex_box = cookie,
 //                                  .tint = { 2.0f, 1.4f, 0.8f, 1.0f } },
-//                            { .view = View::Lights, .material = atlas->material() });
+//                            { .view = View::Lights, .material = sheet->material() });
 // =============================================================================
 
 #pragma once

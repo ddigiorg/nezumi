@@ -10,7 +10,7 @@
 // - "Main Menu" has no title bar and stays centered on the screen, even when
 //   the window is resized (PinPosition with a pivot).
 // - "Bag" and "Hotbar" are slot grids (UI::Context::slot_grid) of icons cut
-//   from the example atlas. Drag icons between slots and between the two
+//   from the example sprite sheet. Drag icons between slots and between the two
 //   grids; drop one outside both to throw it away, right-click a bag slot
 //   to empty it. Hovering a slot shows a tooltip.
 // - Behind the panels is a world view: left click drops a marker, the wheel
@@ -68,7 +68,8 @@ static constexpr std::array<glm::vec4, 4> COLORS = {{
 static constexpr std::array<std::string_view, 3> DIFFICULTIES = { "Easy", "Normal", "Nightmare" };
 
 // Slot grid icons: the arrow on each unit frame in assets/graphics/atlas.png
-// (two rows of ten 64 px frames), 48x48 px squares
+// (page 0 of example-sheet.json: two rows of ten 64 px frames), 48x48 px
+// squares
 static constexpr std::size_t ICON_COUNT = 20;
 static constexpr std::array<std::string_view, 4> ICON_COLORS = { "Red", "Purple", "Blue", "Teal" };
 static constexpr std::array<std::string_view, 5> ICON_HEADINGS = {
@@ -99,11 +100,11 @@ public:
         world_camera_->set_pixels_per_unit(TILE_PIXELS);
 
         // Icons for the slot grids, and a full bag to start with
-        const Render::Atlas& atlas = *renderer->create_atlas(
-            Render::AtlasConfig{ .name = "example-atlas", .filepath = "assets/graphics/atlas.png" }).object;
+        const Render::SpriteSheet& sheet = *renderer->create_sprite_sheet(
+            Render::SpriteSheetConfig{ .name = "example-sheet", .manifest = "assets/graphics/example-sheet.json" }).object;
         for (std::size_t i = 0; i < ICON_COUNT; i++) {
             const glm::vec2 frame = { 64.0f * float(i % 10), 128.0f * float(i / 10) };
-            icons_[i] = UI::Image::from(atlas, { frame + glm::vec2(8.0f), frame + glm::vec2(56.0f) });
+            icons_[i] = UI::Image::from(sheet, glm::vec4{ frame + glm::vec2(8.0f), frame + glm::vec2(56.0f) });
         }
         for (std::size_t i = 0; i < bag_.size(); i++) bag_[i] = static_cast<int>(i);
         hotbar_.fill(EMPTY);

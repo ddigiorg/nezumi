@@ -2,7 +2,7 @@
 // Image.hpp
 //
 // Decoded RGBA8 pixels on the CPU, rows top to bottom (as image files store
-// them). Input to AtlasBuilder; never flipped.
+// them). Input to SpriteSheet and Font; never flipped.
 // =============================================================================
 
 #pragma once
@@ -64,7 +64,7 @@ Image load_image(std::string_view path);
 // Premultiply Alpha
 //
 // Multiplies each pixel's RGB by its alpha, in place (rounded to nearest).
-// Atlases store premultiplied texels: linear filtering and mip averaging then
+// Sprite sheets store premultiplied texels: linear filtering and mip averaging then
 // weight each texel's color by its coverage, so transparent pixels can't drag
 // their (usually black) RGB into sprite edges as dark fringes.
 // -----------------------------------------------------------------------------

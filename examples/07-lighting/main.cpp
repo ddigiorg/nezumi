@@ -125,7 +125,7 @@ public:
                 .pan_up    = Action::PanUp,
             });
 
-        atlas_ = r.create_atlas({ .name = "example-atlas", .filepath = "assets/graphics/atlas.png" }).object;
+        sheet_ = r.create_sprite_sheet({ .name = "example-sheet", .manifest = "assets/graphics/example-sheet.json" }).object;
         font_  = r.create_font({ .name = "example-font",
                                  .filepath = "assets/fonts/CommitMono-1.143/CommitMono-400-Regular.otf" }).object;
 
@@ -189,7 +189,7 @@ private:
         }
     }
 
-    // A ring of the atlas's arrow sprites
+    // A ring of the sheet's arrow sprites (page 0, atlas.png)
     void draw_sprites_(Render::Renderer2D& r) const {
         for (int i = 0; i < 20; i++) {
             const float     a  = float(i) / 20.0f * 6.2831853f;
@@ -197,9 +197,9 @@ private:
             const glm::vec4 px = { float(i % 10) * 64.0f, float(i / 10) * 128.0f,
                                    float(i % 10) * 64.0f + 64.0f, float(i / 10) * 128.0f + 128.0f };
             r.draw_sprite({ .pos_box = { p.x - 12.0f, p.y, p.x + 12.0f, p.y + 48.0f },
-                            .tex_box = atlas_->tex_box(px) },
+                            .tex_box = sheet_->tex_box(px) },
                           { .view = Render::View::World, .layer = 1, .order = -int(p.y),
-                            .material = atlas_->material() });
+                            .material = sheet_->material() });
         }
     }
 
@@ -267,7 +267,7 @@ private:
     std::unique_ptr<CameraController>    camera_controller_ = nullptr;
     Render::Camera2D* world_camera_  = nullptr;
     Render::Camera2D* screen_camera_ = nullptr;
-    Render::Atlas*    atlas_         = nullptr;
+    Render::SpriteSheet* sheet_      = nullptr;
     Render::Font*     font_          = nullptr;
     EventListenerID   mouse_listener_ = {};
     glm::vec2         mouse_          = { -1.0f, -1.0f };
