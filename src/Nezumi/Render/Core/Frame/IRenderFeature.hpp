@@ -16,8 +16,9 @@
 //     upload(core)                 publish views (core.set_view) and write
 //                                  any buffers of its own
 //     -- RenderCore uploads views and flushes the stream --
-//     record(core, encoder, views) once per pass that lists this feature, with
-//                                  that pass's view mask; inside the pass
+//     record(core, encoder, pass)  once per pass that lists this feature, with
+//                                  that pass's views, step, and target format;
+//                                  inside the pass
 //     -- Device::end_frame --
 //     finish(core)                 frame statistics
 //
@@ -26,7 +27,7 @@
 // =============================================================================
 
 #pragma once
-#include "Nezumi/Render/Core/View/ViewID.hpp"
+#include "Nezumi/Render/Core/Frame/PassContext.hpp"
 #include <string_view> // string_view
 
 namespace Nezumi::RHI {
@@ -47,12 +48,12 @@ public:
     virtual void prepare    (RenderCore& /*core*/) {}
     virtual void upload     (RenderCore& /*core*/) {}
 
-    // Record this feature's draws for the views in `views` into the current
-    // pass. State bound here doesn't carry over to the next feature.
+    // Record this feature's draws for the views in `pass.views` into the
+    // current pass. State bound here doesn't carry over to the next feature.
     virtual void record(
         RenderCore&          core,
         RHI::CommandEncoder& encoder,
-        ViewMask             views) = 0;
+        const PassContext&   pass) = 0;
 
     virtual void finish(RenderCore& /*core*/) {}
 };

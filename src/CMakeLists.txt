@@ -138,6 +138,7 @@ add_library(nezumi_render STATIC
     Nezumi/Render/2D/Kinds/ArrowKind.cpp
     Nezumi/Render/2D/Kinds/CircleKind.cpp
     Nezumi/Render/2D/Kinds/LineKind.cpp
+    Nezumi/Render/2D/Kinds/PointLightKind.cpp
     Nezumi/Render/2D/Kinds/QuadKind.cpp
     Nezumi/Render/2D/Kinds/RectangleFilledKind.cpp
     Nezumi/Render/2D/Kinds/RectangleUnfilledKind.cpp
@@ -150,6 +151,7 @@ add_library(nezumi_render STATIC
     Nezumi/Render/Core/Text/Font.cpp
     Nezumi/Render/2D/Camera/Camera2D.cpp
     Nezumi/Render/2D/Renderer2D.cpp
+    Nezumi/Render/Core/Post/PostProcess.cpp
     Nezumi/Render/Core/RenderCore.cpp
 )
 

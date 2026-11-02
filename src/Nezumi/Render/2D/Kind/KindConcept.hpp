@@ -9,6 +9,9 @@
 //   - vertex buffer 1: Instance, VertexStepMode::Instance, stride sizeof(Instance)
 //   - bind group 0:    ctx.views->layout() (per-view uniforms)
 //   - bind group 1:    material, for textured kinds (later)
+//   - color target 0:  `format`, the color format of the pass it draws into.
+//                      KindRegistry builds one pipeline per format a kind
+//                      draws to (the backbuffer, RGBA16Float targets, ...).
 // =============================================================================
 
 #pragma once
@@ -29,11 +32,11 @@ template <typename K>
 concept KindConcept =
     std::is_trivially_copyable_v<typename K::Instance> &&
     alignof(typename K::Instance) <= CommandQueue::ARENA_ALIGN &&
-    requires(const RenderContext& ctx) {
-        { K::NAME               } -> std::convertible_to<std::string_view>;
-        { K::VERTEX_COUNT       } -> std::convertible_to<std::uint32_t>;
-        { K::shape_vertices()   } -> std::convertible_to<std::span<const std::byte>>;
-        { K::make_pipeline(ctx) } -> std::same_as<RHI::RenderPipelineHandle>;
+    requires(const RenderContext& ctx, RHI::Format format) {
+        { K::NAME                       } -> std::convertible_to<std::string_view>;
+        { K::VERTEX_COUNT               } -> std::convertible_to<std::uint32_t>;
+        { K::shape_vertices()           } -> std::convertible_to<std::span<const std::byte>>;
+        { K::make_pipeline(ctx, format) } -> std::same_as<RHI::RenderPipelineHandle>;
     };
 
 } // namespace Nezumi::Render

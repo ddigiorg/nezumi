@@ -12,7 +12,7 @@
 
 namespace Nezumi::Render {
 
-RHI::RenderPipelineHandle TextGlyphSDFKind::make_pipeline(const RenderContext& ctx) {
+RHI::RenderPipelineHandle TextGlyphSDFKind::make_pipeline(const RenderContext& ctx, RHI::Format format) {
 
     // Setup vertex shader
     const RHI::ShaderHandle vert_shader = ctx.shaders->get(
@@ -96,7 +96,7 @@ RHI::RenderPipelineHandle TextGlyphSDFKind::make_pipeline(const RenderContext& c
     // Setup color targets
     const std::array<RHI::ColorTargetState, 1> color_targets = {
         RHI::ColorTargetState{
-            .format = ctx.device->backbuffer_format(),
+            .format = format,
             .blend  = RHI::BlendState::ALPHA_BLEND(),
         },
     };

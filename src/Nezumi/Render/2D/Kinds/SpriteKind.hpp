@@ -46,7 +46,7 @@ struct SpriteKind {
         return std::as_bytes(std::span(VERTICES));
     }
 
-    static RHI::RenderPipelineHandle make_pipeline(const RenderContext& ctx);
+    static RHI::RenderPipelineHandle make_pipeline(const RenderContext& ctx, RHI::Format format);
 };
 
 static_assert(KindConcept<SpriteKind>);

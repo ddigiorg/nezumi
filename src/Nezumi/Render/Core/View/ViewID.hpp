@@ -12,7 +12,7 @@
 // Games can name their own views next to the defaults:
 //
 //   namespace GameView {
-//       inline constexpr Render::ViewID Minimap = 2;
+//       inline constexpr Render::ViewID Minimap = 4;
 //   }
 // =============================================================================
 
@@ -35,10 +35,14 @@ constexpr ViewMask view_bit(ViewID view) {
     return ViewMask(1u << view);
 }
 
-// Views Renderer2D creates a camera for at construction.
+// Views Renderer2D sets up at construction. Lights and Emissive draw through
+// the world camera, so they line up with View::World; a lit FrameRecipe
+// records each into its own target (see PostProcess.hpp).
 struct View {
-    static constexpr ViewID World  = 0; // CameraOrigin::Centered, world units
-    static constexpr ViewID Screen = 1; // CameraOrigin::BottomLeft, 1 unit = 1 point (display_scale pixels)
+    static constexpr ViewID World    = 0; // CameraOrigin::Centered, world units
+    static constexpr ViewID Screen   = 1; // CameraOrigin::BottomLeft, 1 unit = 1 point (display_scale pixels)
+    static constexpr ViewID Lights   = 2; // world camera: lights, into the light target
+    static constexpr ViewID Emissive = 3; // world camera: unlit glow (flames, spell cores), after the composite
 };
 
 } // namespace Nezumi::Render

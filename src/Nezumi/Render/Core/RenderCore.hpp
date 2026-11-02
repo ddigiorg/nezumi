@@ -19,6 +19,8 @@
 //   - StreamBuffer   per-frame instance data, shared by all features
 //   - ViewBindings   bind group 0: one uniform slot per ViewID
 //   - FrameRecipe    the passes, in order
+//   - RenderTargets  offscreen color targets passes draw into, sized to the
+//                    backbuffer (see RenderTarget.hpp)
 //
 // Views: each frame, features publish the views they draw through with
 // set_view(); RenderCore uploads exactly those. A view nobody publishes keeps
@@ -28,6 +30,7 @@
 #pragma once
 #include "Nezumi/Render/Core/Frame/FrameRecipe.hpp"
 #include "Nezumi/Render/Core/Frame/IRenderFeature.hpp"
+#include "Nezumi/Render/Core/Frame/RenderTarget.hpp"
 #include "Nezumi/Render/Core/Frame/StreamBuffer.hpp"
 #include "Nezumi/Render/Core/Material/MaterialTable.hpp"
 #include "Nezumi/Render/Core/Shader/ShaderLibrary.hpp"
@@ -50,7 +53,7 @@ public:
     // -------------------------------------------------------------------------
 
     explicit RenderCore(RHI::Device& device, const RenderCoreConfig& config = {});
-    ~RenderCore() = default;
+    ~RenderCore();
 
     // Non-copyable and non-movable
     RenderCore(const RenderCore&)            = delete;
@@ -88,6 +91,24 @@ public:
 
     void               set_recipe(FrameRecipe recipe);
     const FrameRecipe& get_recipe() const { return recipe_; }
+
+    // -------------------------------------------------------------------------
+    // Targets
+    //
+    // Offscreen color targets for passes to draw into (PassConfig::target)
+    // and features to sample. Create them at startup, outside a frame. Each
+    // is resized with the backbuffer at the start of end_frame's upload step,
+    // which recreates its texture: read target_texture() every frame.
+    //
+    // Target::Backbuffer answers too: its format, its extent, and (only
+    // inside a frame) the swapchain texture.
+    // -------------------------------------------------------------------------
+
+    TargetID                  create_target (const RenderTargetConfig& config);
+    RHI::TextureHandle        target_texture(TargetID target) const;
+    RHI::Format               target_format (TargetID target) const;
+    RHI::Extent2D             target_extent (TargetID target) const;
+    const RenderTargetConfig& target_config (TargetID target) const;
 
     // -------------------------------------------------------------------------
     // Views
@@ -137,6 +158,17 @@ private:
 
     FrameRecipe                  recipe_;
     std::vector<IRenderFeature*> features_;
+
+    struct TargetSlot {
+        RenderTargetConfig config  = {};
+        RHI::TextureHandle texture = {};
+        RHI::Extent2D      extent  = {};
+    };
+    std::vector<TargetSlot> targets_; // TargetID - 1
+
+    RHI::Extent2D scaled_extent_(float scale) const;
+    void          create_target_texture_(TargetSlot& slot, RHI::Extent2D extent);
+    void          resize_targets_();
 
     std::array<ViewData, VIEW_CAPACITY> view_data_ = {};
     ViewMask                            view_dirty_ = 0;

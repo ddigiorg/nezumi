@@ -2,6 +2,10 @@
 // KindRegistry.hpp
 //
 // GPU resources per kind, registered up front in the Renderer2D constructor.
+//
+// A kind's pipeline is made for the backbuffer's format when it registers,
+// and for any other target format the first time ensure_format() asks
+// (Renderer2D does, before each frame's passes, for every pass it records).
 // =============================================================================
 
 #pragma once
@@ -53,9 +57,24 @@ public:
         return kinds_[id];
     }
 
+    // Makes every registered kind's pipeline for `format`, if missing.
+    // Throws like ensure() if one can't be made.
+    void ensure_format(const RenderContext& ctx, RHI::Format format) {
+        for (KindResources& k : kinds_) {
+            if (!k.ready() || k.pipeline(format)) continue;
+            const RHI::RenderPipelineHandle pipeline = k.make(ctx, format);
+            if (!pipeline) {
+                throw std::runtime_error(
+                    "KindRegistry: pipeline for '" + k.name + "' failed (see log)"
+                );
+            }
+            k.pipelines.push_back({ format, pipeline });
+        }
+    }
+
     void clear() {
         for (const KindResources& k : kinds_) {
-            device_.remove(k.pipeline);
+            for (const auto& p : k.pipelines) device_.remove(p.pipeline);
             device_.remove(k.shape);
         }
         kinds_.clear();
@@ -91,8 +110,9 @@ private:
             );
         }
 
-        // Create pipeline
-        const RHI::RenderPipelineHandle pipeline = K::make_pipeline(ctx);
+        // Create pipeline, for the backbuffer
+        const RHI::Format               format   = ctx.device->backbuffer_format();
+        const RHI::RenderPipelineHandle pipeline = K::make_pipeline(ctx, format);
         if (!pipeline) {
             device_.remove(shape);
             throw std::runtime_error(
@@ -102,7 +122,8 @@ private:
 
         kinds_[id] = KindResources{
             .name         = name,
-            .pipeline     = pipeline,
+            .make         = &K::make_pipeline,
+            .pipelines    = { { format, pipeline } },
             .shape        = shape,
             .vertex_count = static_cast<std::uint32_t>(K::VERTEX_COUNT),
             .stride       = static_cast<std::uint32_t>(sizeof(typename K::Instance)),
