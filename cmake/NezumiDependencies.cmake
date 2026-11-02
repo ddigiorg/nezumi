@@ -115,11 +115,25 @@ function(nezumi_fetch_dependencies)
         SYSTEM
     )
 
-    FetchContent_MakeAvailable(SDL3 freetype glm stb fastnoiselite nlohmann_json)
+    # --------------------------------------------------------------------------
+    # bcdec (header-only BC1-7 block decoder; no releases, pinned to a commit).
+    # Decodes BC7 sprite sheets on drivers without BPTC (macOS's GL 4.1).
+    # SOURCE_SUBDIR points nowhere so its test CMakeLists isn't added.
+    # --------------------------------------------------------------------------
+
+    FetchContent_Declare(bcdec
+        GIT_REPOSITORY https://github.com/iOrange/bcdec.git
+        GIT_TAG        80859ed3b7afb1c527a2a99d70c61457bea72d0c
+        SOURCE_SUBDIR  header-only
+        SYSTEM
+    )
+
+    FetchContent_MakeAvailable(SDL3 freetype glm stb fastnoiselite nlohmann_json bcdec)
 
     # Expose the source directories of the header-only repos (which have no
     # CMakeLists.txt) to the parent scope so targets can be created below.
     set(NEZUMI_STB_DIR           "${stb_SOURCE_DIR}"               PARENT_SCOPE)
+    set(NEZUMI_BCDEC_DIR         "${bcdec_SOURCE_DIR}"             PARENT_SCOPE)
     set(NEZUMI_FASTNOISELITE_DIR "${fastnoiselite_SOURCE_DIR}/Cpp" PARENT_SCOPE)
 
 endfunction()
@@ -150,7 +164,7 @@ endif()
 # To regenerate:
 #   pip install glad2==2.0.8
 #   python -m glad --api gl:core=3.3 \
-#       --extensions GL_ARB_clip_control,GL_ARB_invalidate_subdata,GL_ARB_texture_filter_anisotropic,GL_EXT_texture_filter_anisotropic,GL_KHR_debug \
+#       --extensions GL_ARB_clip_control,GL_ARB_invalidate_subdata,GL_ARB_texture_compression_bptc,GL_ARB_texture_filter_anisotropic,GL_EXT_texture_filter_anisotropic,GL_KHR_debug \
 #       --out-path thirdparty/glad c --loader
 # ------------------------------------------------------------------------------
 
@@ -168,6 +182,13 @@ target_link_libraries(nezumi_glad PRIVATE OpenGL::GL)
 
 add_library(nezumi_stb INTERFACE)
 target_include_directories(nezumi_stb SYSTEM INTERFACE "${NEZUMI_STB_DIR}")
+
+# ------------------------------------------------------------------------------
+# bcdec
+# ------------------------------------------------------------------------------
+
+add_library(nezumi_bcdec INTERFACE)
+target_include_directories(nezumi_bcdec SYSTEM INTERFACE "${NEZUMI_BCDEC_DIR}")
 
 # ------------------------------------------------------------------------------
 # FastNoiseLite

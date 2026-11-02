@@ -43,8 +43,9 @@ struct SpriteSheetConfig {
     // How the sampler blends between mip levels (Linear = trilinear)
     RHI::SamplerFilterMode  mip_filter     = RHI::SamplerFilterMode::Linear;
 
-    // Number of mip levels, generated on the CPU from each page (2x2 box
-    // filter in premultiplied alpha). 1 = no mips; 0 = the full chain, down
+    // Number of mip levels, generated on the CPU from each image page (2x2
+    // box filter in premultiplied alpha). KTX2 pages bring their own levels
+    // and ignore this. 1 = no mips; 0 = the full chain, down
     // to 1x1. Mips stop zoomed-out sprites from shimmering, and keep the GPU
     // from reading full-size texels for small on-screen sprites.
     //
@@ -54,6 +55,12 @@ struct SpriteSheetConfig {
     // padding between sprites; otherwise neighbors bleed into each other at
     // the smaller levels. 4 levels (8 px) covers zooming out to 1/8 size.
     std::uint32_t mip_levels     = 1;
+
+    // Drops this many of the largest levels on load (always keeping one):
+    // a low-res setting for small GPUs. 1 skip = a quarter of the VRAM and
+    // half the sharpness; sprites keep their size on screen, since UVs are
+    // unchanged. Sheets need mips for this to do anything.
+    std::uint32_t skip_levels    = 0;
 
     // Anisotropic filtering (1 = off). Helps textures squashed more along one
     // axis than the other, e.g. square ground textures drawn as 2:1 iso

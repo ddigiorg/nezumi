@@ -7,6 +7,10 @@
 // - Unsigned Normalized (UNORM) maps unsigned integer ranges to float [0.0, 1.0]
 // - Signed Normalized (SNORM) maps signed integer ranges to float [-1.0, 1.0]
 // - Floating-Point (SFLOAT)
+// - Block compressed (BCn): 4x4 pixel blocks, decoded by the GPU when sampled.
+//   Sample-only: they can't be render targets. BC4 is one channel (masks),
+//   BC7 is RGBA at 8 bits per pixel (sprites, terrain). Check
+//   DeviceInfo::supports_bc7 before creating a BC7 texture.
 //
 // WebGPU: GPUTextureFormat
 // Vulkan: VkFormat
@@ -43,6 +47,11 @@ enum class Format : uint8_t {
     Depth24UnormStencil8, // not universally supported on Vulkan; check caps
     Depth32Float,
     Depth32FloatStencil8,
+
+    // Block compressed, 4x4 pixel blocks
+    BC4RUnorm,        //  8 bytes per block
+    BC7RGBAUnorm,     // 16 bytes per block
+    BC7RGBAUnormSrgb, // 16 bytes per block
 };
 
 } // namespace Nezumi::RHI

@@ -73,6 +73,10 @@
 //   - SpriteSheet loads array pages plus a manifest of named sprites
 //     (trimmed boxes, pivots) and animations (frames x directions, mirrored
 //     headings), or takes images you already have.
+//   - Sheet pages ship as KTX2 (Ktx2.hpp): BC7 (or BC4 for masks) with
+//     premultiplied mips baked in, uploaded as stored, and decoded on the
+//     CPU where the GPU lacks BPTC. SpriteSheetConfig::skip_levels drops the
+//     largest levels for a low-res setting.
 //   - Font uses a FreeType SDF glyph atlas with fallback glyphs; text
 //     layout supports alignment and measurement.
 //

@@ -67,6 +67,11 @@ DeviceInfo query_device_info() {
     info.supports_glsl_shaders  = true;
     info.supports_spirv_shaders = false;  // 4.6
 
+    // BC4 (RGTC) is core in 3.0. BC7 (BPTC) is core in 4.2 and
+    // GL_ARB_texture_compression_bptc before; macOS's 4.1 lacks it.
+    info.supports_bc4 = true;
+    info.supports_bc7 = GLAD_GL_ARB_texture_compression_bptc != 0;
+
     // GLContext sets glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE) when the
     // driver has it (core in 4.5, GL_ARB_clip_control before).
     info.clip_depth_zero_to_one = GLAD_GL_ARB_clip_control != 0;

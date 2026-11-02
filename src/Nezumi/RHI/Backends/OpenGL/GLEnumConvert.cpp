@@ -35,6 +35,10 @@ GLenum to_gl_internal_format(Format format) noexcept {
         case Format::Depth24UnormStencil8: return GL_DEPTH24_STENCIL8;
         case Format::Depth32Float:         return GL_DEPTH_COMPONENT32F;
         case Format::Depth32FloatStencil8: return GL_DEPTH32F_STENCIL8;
+
+        case Format::BC4RUnorm:            return GL_COMPRESSED_RED_RGTC1;
+        case Format::BC7RGBAUnorm:         return GL_COMPRESSED_RGBA_BPTC_UNORM_ARB;
+        case Format::BC7RGBAUnormSrgb:     return GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB;
     }
     return GL_NONE;
 }
@@ -62,6 +66,12 @@ GLUploadFormat to_gl_upload_format(Format format) noexcept {
         case Format::Depth24UnormStencil8: return { GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8 };
         case Format::Depth32Float:         return { GL_DEPTH_COMPONENT, GL_FLOAT };
         case Format::Depth32FloatStencil8: return { GL_DEPTH_STENCIL,   GL_FLOAT_32_UNSIGNED_INT_24_8_REV };
+
+        // Compressed data goes through glCompressedTex*, which takes no
+        // format/type pair
+        case Format::BC4RUnorm:
+        case Format::BC7RGBAUnorm:
+        case Format::BC7RGBAUnormSrgb:     return {};
     }
     return {};
 }
