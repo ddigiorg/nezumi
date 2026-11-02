@@ -213,6 +213,13 @@ SlotMap<SpriteSheet>::Pair Renderer2D::create_sprite_sheet(const SpriteSheetConf
 
 SlotMap<SpriteSheet>::Pair Renderer2D::create_sprite_sheet(
     const SpriteSheetConfig& config,
+    const SpritePacker&      packer)
+{
+    return sprite_sheets_.create(core_.context(), config, packer);
+}
+
+SlotMap<SpriteSheet>::Pair Renderer2D::create_sprite_sheet(
+    const SpriteSheetConfig& config,
     std::span<const Image>   pages)
 {
     return sprite_sheets_.create(core_.context(), config, pages);

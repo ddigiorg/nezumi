@@ -59,6 +59,27 @@ SpriteSheet::SpriteSheet(RenderContext& context, const SpriteSheetConfig& config
 SpriteSheet::SpriteSheet(
     RenderContext&           context,
     const SpriteSheetConfig& config,
+    const SpritePacker&      packer)
+        : context_(&context)
+        , name_(config.name)
+{
+    if (config.mip_levels == 0 || config.mip_levels > 16) fail(name_, "a packed sheet needs mip_levels in [1, 16]");
+    SpritePacker::Packed packed = packer.pack(1u << (config.mip_levels - 1));
+
+    regions_    = std::move(packed.regions);
+    animations_ = std::move(packed.animations);
+    for (std::size_t i = 0; i < packed.sprite_names.size(); ++i) {
+        sprite_names_.emplace(std::move(packed.sprite_names[i]), static_cast<SpriteID>(i));
+    }
+    for (std::size_t i = 0; i < packed.animation_names.size(); ++i) {
+        animation_names_.emplace(std::move(packed.animation_names[i]), static_cast<AnimationID>(i));
+    }
+    create_(config, packed.pages);
+}
+
+SpriteSheet::SpriteSheet(
+    RenderContext&           context,
+    const SpriteSheetConfig& config,
     std::span<const Image>   pages)
         : context_(&context)
         , name_(config.name)
