@@ -230,7 +230,8 @@ public:
     // A tooltip for the previous widget, shown once the cursor has rested on
     // it for style.tooltip_delay seconds. Call it every frame, right after
     // the widget (after slot_grid: for its hovered slot). '\n' starts a new
-    // line.
+    // line. The delay is timed per widget, so the text may change while
+    // it's shown (a countdown, a live count) without starting over.
     void tooltip(std::string_view text);
 
     // -------------------------------------------------------------------------
@@ -282,6 +283,8 @@ public:
         bool held          = false; // pressed on it, mouse still down
         bool clicked       = false; // pressed and released on it (not dragged away)
         bool right_clicked = false; // right button pressed on it
+        float wheel        = 0.0f;  // mouse wheel notches while over it (up > 0); a
+                                    // panel that scrolls takes the wheel first
     };
 
     // Id of `label` in the current panel, as the built-in widgets make them
@@ -607,7 +610,8 @@ private:
     Rect last_rect_    = {};
     bool last_hovered_ = false;
 
-    // Tooltip being timed: a hash of its text and panel, and since when
+    // Tooltip being timed: a hash of its widget's place in its panel, and
+    // since when
     ID     tooltip_id_    = 0;
     double tooltip_start_ = 0.0;
     bool   tooltip_seen_  = false;
@@ -631,8 +635,13 @@ private:
     bool              right_pressed_  = false;
     glm::vec2         press_pos_      = {};   // where the left button went down, UI units
     float             wheel_          = 0.0f;
-    std::string       typed_          = {};
-    std::vector<ScanCode> keys_       = {};   // editing keys, with repeats
+    // A focused text field's input this frame, in order: a printable
+    // character (key Unknown) or an editing key, with repeats
+    struct TextInput {
+        ScanCode key = ScanCode::Unknown;
+        char     c   = 0;
+    };
+    std::vector<TextInput> text_in_   = {};
 
     CursorStyle ui_cursor_   = CursorStyle::Arrow;
     CursorStyle game_cursor_ = CursorStyle::Arrow;

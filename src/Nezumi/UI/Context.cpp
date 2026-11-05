@@ -191,8 +191,7 @@ void Context::end_frame() {
     mouse_released_ = false;
     right_pressed_  = false;
     wheel_          = 0.0f;
-    typed_.clear();
-    keys_.clear();
+    text_in_.clear();
 
     in_frame_ = false;
 }
@@ -791,6 +790,7 @@ Context::Interaction Context::interact(ID id, const Rect& r) {
     if (!layout_.panel) return it;
     it.clicked       = behavior_(id, r, &it.hovered, &it.held);
     it.right_clicked = it.hovered && right_pressed_;
+    it.wheel         = it.hovered ? wheel_ : 0.0f;
     return it;
 }
 
@@ -800,8 +800,10 @@ void Context::tooltip(std::string_view text) {
     // Only while resting on it: not while a button is held or dragging
     if (!last_hovered_ || mouse_down_ || drag_active_) return;
 
-    const ID id = hash_(text, hash_(std::string_view(reinterpret_cast<const char*>(&last_rect_.min),
-                                                     sizeof last_rect_.min), layout_.panel->id));
+    // Timed per widget (where it sits in its panel), not per text, so a
+    // tooltip whose text changes while it's up (a countdown) stays up
+    const glm::vec4 where = { last_rect_.min - layout_.panel->pos, last_rect_.max - layout_.panel->pos };
+    const ID id = hash_(std::string_view(reinterpret_cast<const char*>(&where), sizeof where), layout_.panel->id);
     tooltip_seen_ = true;
     if (tooltip_id_ != id) {
         tooltip_id_    = id;
@@ -1139,7 +1141,7 @@ void Context::subscribe_() {
         [this](const OnTextInput& e) {
             if (!focus_id_) return;
             for (const char* c = e.text; *c; c++)
-                if (*c >= 32 && *c <= 126) typed_.push_back(*c);
+                if (*c >= 32 && *c <= 126) text_in_.push_back({ ScanCode::Unknown, *c });
         }
     );
 
@@ -1155,7 +1157,7 @@ void Context::subscribe_() {
                 case ScanCode::End:
                 case ScanCode::Return:
                 case ScanCode::Escape:
-                    keys_.push_back(e.scancode);
+                    text_in_.push_back({ e.scancode, 0 });
                     break;
                 default:
                     break;

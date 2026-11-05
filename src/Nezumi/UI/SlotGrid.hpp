@@ -59,6 +59,11 @@ struct SlotStyle {
     float     icon_inset  = 3.0f;
     float     icon_radius = 3.0f;
 
+    // Drawn where an empty slot's icon would be (e.g. a greyed emblem, for
+    // a codex's undiscovered items); none: the frame alone
+    Image     placeholder      = {};
+    glm::vec4 placeholder_tint = { 1.0f, 1.0f, 1.0f, 0.5f };
+
     // Text: the label in the top-right corner, the count in the bottom-right
     float     label_size  = 11.0f;
     glm::vec4 label_color = { 0.85f, 0.88f, 0.92f, 1.0f };
@@ -78,6 +83,8 @@ struct SlotGridResult {
     int         hovered       = -1; // under the cursor
     int         clicked       = -1; // left click (press and release on it, no drag)
     int         right_clicked = -1;
+    float       wheel         = 0.0f; // wheel notches over the hovered slot (up > 0); a
+                                      // panel that scrolls takes the wheel first
     int         drag_started  = -1; // a drag left this slot this frame
     int         dragging      = -1; // a drag from this grid is in flight, from this slot
     int         dropped       = -1; // a drag was released on this slot ...
