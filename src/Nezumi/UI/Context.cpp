@@ -819,8 +819,18 @@ void Context::draw_tooltip_(std::string_view text, const Rect& anchor) {
 
     // Above the widget, centered on it, or below it if there is no room;
     // always on screen
+    // One line per '\n'
+    const float line_h = snap_(text_height_ + style_.item_spacing.y * 0.5f);
+    float       text_w = 0.0f;
+    int         lines  = 0;
+    for (std::size_t at = 0; at <= text.size(); lines++) {
+        const std::size_t end = std::min(text.find('\n', at), text.size());
+        text_w = std::max(text_w, text_width_(text.substr(at, end - at)));
+        at = end + 1;
+    }
+
     const glm::vec2 pad  = style_.frame_padding;
-    const glm::vec2 size = snap_(glm::vec2(text_width_(text), text_height_) + 2.0f * pad);
+    const glm::vec2 size = snap_(glm::vec2(text_w, text_height_ + line_h * static_cast<float>(lines - 1)) + 2.0f * pad);
     const float     gap  = 6.0f;
     glm::vec2 pos = { anchor.center().x - size.x * 0.5f, anchor.min.y - gap - size.y };
     if (pos.y < 0.0f) pos.y = anchor.max.y + gap;
@@ -831,7 +841,12 @@ void Context::draw_tooltip_(std::string_view text, const Rect& anchor) {
     const Rect box = Rect::from_size(snap_(pos), size);
 
     draw_box_(box, style_.tooltip_bg, style_.frame_rounding, style_.panel_border, style_.border_width);
-    draw_text_(box.min + pad, text, style_.text);
+    glm::vec2 at = box.min + pad;
+    for (std::size_t from = 0; from <= text.size(); at.y += line_h) {
+        const std::size_t end = std::min(text.find('\n', from), text.size());
+        draw_text_(at, text.substr(from, end - from), style_.text);
+        from = end + 1;
+    }
 
     list_ = saved_list;
     clip_ = saved_clip;
