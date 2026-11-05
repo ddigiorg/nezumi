@@ -57,6 +57,14 @@ struct PanelConfig {
 
     PanelFlags flags   = PanelFlags::Movable;
 
+    // Scrolling (panels that aren't AutoSize, once their content is taller
+    // than they are): > 0 snaps the scroll to multiples of this, one per
+    // mouse wheel notch, so a grid of slots scrolls by whole rows (pass its
+    // row pitch: slot height plus spacing). 0: style.scroll_speed per notch,
+    // anywhere. The scrollbar's thumb can be dragged either way, and a press
+    // on its track jumps the thumb there.
+    float scroll_step = 0.0f;
+
     // The part of the panel that takes the mouse, from its top-left corner;
     // empty (the default): all of it. Lets a panel with decorations that
     // stick out (an action bar's flanking statues) claim only its bar, so

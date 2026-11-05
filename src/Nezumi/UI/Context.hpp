@@ -398,6 +398,7 @@ private:
         glm::vec2   size       = { 0.0f, 0.0f };
         glm::vec2   content    = { 0.0f, 0.0f }; // content size measured last frame
         float       scroll     = 0.0f;
+        float       scroll_step = 0.0f;  // PanelConfig::scroll_step
         PanelFlags  flags      = PanelFlags::None;
         glm::vec2   min_size   = { 0.0f, 0.0f };
         glm::vec2   anchor     = { 0.0f, 0.0f }; // PanelConfig::position
@@ -457,6 +458,17 @@ private:
     void   draw_chrome_(Panel& panel);
     float  title_height_(const Panel& panel) const;
     Rect   close_rect_(const Panel& panel) const;
+
+    // The scrollbar of a panel whose content overflows: its thumb, the
+    // track the thumb slides along (UI units), and the furthest the panel
+    // scrolls. False when it doesn't scroll.
+    struct Scrollbar {
+        Rect  thumb      = {};
+        Rect  track      = {};
+        float max_scroll = 0.0f;
+    };
+    bool  scrollbar_ (const Panel& panel, Scrollbar& out) const;
+    float max_scroll_(const Panel& panel) const;
 
     // -------------------------------------------------------------------------
     // Helpers: layout and interaction (Context.cpp)
@@ -575,6 +587,8 @@ private:
 
     // Panel move / resize drag
     ID           drag_panel_  = 0;
+    ID           scroll_drag_ = 0;    // panel whose scrollbar thumb is held
+    float        scroll_grab_ = 0.0f; // cursor below the thumb's top when grabbed
     std::uint8_t drag_edges_  = EdgeNone; // EdgeNone = moving
     glm::vec2    drag_mouse_  = {};
     glm::vec2    drag_pos_    = {};

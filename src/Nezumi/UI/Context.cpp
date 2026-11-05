@@ -17,7 +17,7 @@
 #include "Nezumi/Render/2D/Renderer2D.hpp"
 #include <algorithm> // clamp, find_if, max, min, rotate
 #include <chrono>    // steady_clock
-#include <cmath>     // floor, round
+#include <cmath>     // ceil, floor, round
 #include <cassert>   // assert
 
 namespace Nezumi::UI {
@@ -161,8 +161,9 @@ void Context::end_frame() {
 
     // A release ends any hold, even on a widget that wasn't drawn this frame
     if (mouse_released_ && !mouse_down_) {
-        active_id_  = 0;
-        drag_panel_ = 0;
+        active_id_   = 0;
+        drag_panel_  = 0;
+        scroll_drag_ = 0;
     }
 
     // Back to front, then the open dropdown on top. One layer and kind for
@@ -228,6 +229,7 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     Panel& p   = *panel;
     p.flags    = config.flags;
     p.min_size = config.min_size;
+    p.scroll_step = std::max(0.0f, config.scroll_step);
     p.anchor   = config.position;
     p.pivot    = config.pivot;
     p.hit_box  = config.hit_box;
@@ -276,12 +278,47 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     const bool  auto_size = p.has(PanelFlags::AutoSize);
 
     if (!auto_size) {
+        const float step = p.scroll_step;
+
+        // The scrollbar: press the thumb to drag it, or the track to jump
+        // the thumb's middle there first
+        Scrollbar bar;
+        if (scrollbar_(p, bar)) {
+            const Rect hit = { { bar.track.min.x - thickness_(3.0f), bar.track.min.y },
+                               { bar.track.max.x + thickness_(3.0f), bar.track.max.y } };
+            if (scroll_drag_ == 0 && hot_panel_ == id && !on_popup_ && active_id_ == 0 &&
+                mouse_pressed_ && hit.contains(mouse_)) {
+                scroll_drag_ = id;
+                active_id_   = hash_("#scrollbar", id);
+                scroll_grab_ = bar.thumb.contains(mouse_) ? mouse_.y - bar.thumb.min.y
+                                                          : bar.thumb.height() * 0.5f;
+            }
+            if (scroll_drag_ == id) {
+                if (mouse_down_) {
+                    const float travel = bar.track.height() - bar.thumb.height();
+                    const float t      = travel > 0.0f
+                        ? std::clamp((mouse_.y - scroll_grab_ - bar.track.min.y) / travel, 0.0f, 1.0f) : 0.0f;
+                    p.scroll = t * bar.max_scroll;
+                    if (step > 0.0f) p.scroll = std::round(p.scroll / step) * step;
+                } else {
+                    scroll_drag_ = 0;
+                }
+            }
+        } else if (scroll_drag_ == id) {
+            scroll_drag_ = 0;
+        }
+
+        // The wheel: one step per notch, or scroll_speed points
         if (hot_panel_ == id && !on_popup_ && wheel_ != 0.0f) {
-            p.scroll -= wheel_ * style_.scroll_speed;
+            if (step > 0.0f) {
+                const float notches = wheel_ > 0.0f ? std::ceil(wheel_) : std::floor(wheel_);
+                p.scroll = (std::round(p.scroll / step) - notches) * step;
+            } else {
+                p.scroll -= wheel_ * style_.scroll_speed;
+            }
             wheel_ = 0.0f; // one panel scrolls per notch
         }
-        const float max_scroll = std::max(0.0f, p.content.y - content.height());
-        p.scroll = std::clamp(p.scroll, 0.0f, max_scroll);
+        p.scroll = std::clamp(p.scroll, 0.0f, max_scroll_(p));
     } else {
         p.scroll = 0.0f;
     }
@@ -290,6 +327,13 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     layout_.panel    = &p;
     layout_.content  = content;
     layout_.clip     = auto_size ? NO_CLIP : inner;
+
+    // Stepped scrolling shows whole rows, so nothing peeks into the padding
+    // above or below them
+    if (!auto_size && p.scroll_step > 0.0f) {
+        layout_.clip.min.y = content.min.y;
+        layout_.clip.max.y = content.max.y;
+    }
     layout_.origin   = content.min - glm::vec2(0.0f, p.scroll);
     layout_.cursor   = layout_.origin;
     layout_.max_x    = layout_.origin.x;
@@ -537,6 +581,36 @@ float Context::title_height_(const Panel& panel) const {
     return snap_(text_height_ + 2.0f * style_.title_padding);
 }
 
+float Context::max_scroll_(const Panel& p) const {
+    const float view_h = p.size.y - title_height_(p) - 2.0f * padding_(p).y;
+    const float max    = std::max(0.0f, p.content.y - view_h);
+
+    // Stepped: far enough that the last step shows whole (a row pitch
+    // includes the spacing after the last row, which the content doesn't)
+    if (p.scroll_step > 0.0f && max > 0.0f) return std::ceil(max / p.scroll_step - 1e-3f) * p.scroll_step;
+    return max;
+}
+
+bool Context::scrollbar_(const Panel& p, Scrollbar& out) const {
+    if (p.has(PanelFlags::AutoSize)) return false;
+    const float title_h = title_height_(p);
+    const float view_h  = p.size.y - title_h - 2.0f * padding_(p).y;
+    if (view_h <= 0.0f || p.content.y <= view_h) return false;
+
+    const Rect  r       = p.rect();
+    const float bw      = p.has(PanelFlags::NoBackground) ? 0.0f : thickness_(style_.border_width);
+    const float w       = snap_(style_.scrollbar_width);
+    const float x       = r.max.x - bw - thickness_(2.0f) - w;
+    const float top     = r.min.y + title_h + padding_(p).y;
+
+    out.max_scroll      = max_scroll_(p);
+    out.track           = Rect::from_size({ x, top }, { w, view_h });
+    const float thumb_h = std::max(16.0f, view_h * view_h / (view_h + out.max_scroll));
+    const float t       = out.max_scroll > 0.0f ? std::clamp(p.scroll / out.max_scroll, 0.0f, 1.0f) : 0.0f;
+    out.thumb           = Rect::from_size({ x, snap_(top + (view_h - thumb_h) * t) }, { w, snap_(thumb_h) });
+    return true;
+}
+
 Rect Context::close_rect_(const Panel& panel) const {
     const float h = title_height_(panel);
     const float s = snap_(h * 0.7f);
@@ -587,16 +661,13 @@ void Context::draw_chrome_(Panel& p) {
         }
     }
 
-    // Scrollbar: a thumb showing which part of the content is in view
-    const float view_h = p.size.y - title_h - 2.0f * style_.panel_padding.y;
-    if (!p.has(PanelFlags::AutoSize) && p.content.y > view_h && view_h > 0.0f) {
-        const float track_top = r.min.y + title_h + style_.panel_padding.y;
-        const float thumb_h   = std::max(16.0f, view_h * view_h / p.content.y);
-        const float max_off   = p.content.y - view_h;
-        const float thumb_y   = track_top + (view_h - thumb_h) * (p.scroll / max_off);
-        const float x         = r.max.x - bw - thickness_(2.0f) - snap_(style_.scrollbar_width);
-        draw_box_(Rect::from_size({ x, snap_(thumb_y) }, { snap_(style_.scrollbar_width), snap_(thumb_h) }),
-                  style_.scrollbar, style_.scrollbar_width * 0.5f);
+    // Scrollbar: a thumb showing which part of the content is in view,
+    // brighter while held
+    Scrollbar bar;
+    if (scrollbar_(p, bar)) {
+        glm::vec4 color = style_.scrollbar;
+        if (scroll_drag_ == p.id) color = glm::min(color * 1.35f, glm::vec4(1.0f));
+        draw_box_(bar.thumb, color, style_.scrollbar_width * 0.5f);
     }
 
     // Resize grip in the bottom-right corner
