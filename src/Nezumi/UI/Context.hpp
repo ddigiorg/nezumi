@@ -229,7 +229,8 @@ public:
 
     // A tooltip for the previous widget, shown once the cursor has rested on
     // it for style.tooltip_delay seconds. Call it every frame, right after
-    // the widget (after slot_grid: for its hovered slot).
+    // the widget (after slot_grid: for its hovered slot). '\n' starts a new
+    // line.
     void tooltip(std::string_view text);
 
     // -------------------------------------------------------------------------
