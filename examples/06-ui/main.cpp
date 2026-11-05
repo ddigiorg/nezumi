@@ -12,7 +12,10 @@
 // - "Bag" and "Hotbar" are slot grids (UI::Context::slot_grid) of icons cut
 //   from the example sprite sheet. Drag icons between slots and between the two
 //   grids; drop one outside both to throw it away, right-click a bag slot
-//   to empty it. Hovering a slot shows a tooltip.
+//   to empty it. Hovering a slot shows a tooltip. Empty bag slots show a
+//   faded emblem (SlotStyle::placeholder). Click a hotbar slot to use it:
+//   it shades over for 5 s while its tooltip counts down, live; the wheel
+//   over a hotbar slot cycles its icon.
 // - Behind the panels is a world view: left click drops a marker, the wheel
 //   zooms and middle drag pans. While the cursor is over a panel the UI
 //   claims the mouse, so clicks, wheel and drags go to the panel instead.
@@ -318,7 +321,10 @@ private:
             std::array<UI::Slot, 20> slots;
             slots_of(bag_, slots);
             bag_id_ = ui.get_id("bag");
-            const UI::SlotGridResult r = ui.slot_grid("bag", slots, 5, {}, DRAG_ICON);
+            UI::SlotStyle style;
+            style.placeholder = icons_[0];
+            style.placeholder_tint = { 0.4f, 0.45f, 0.55f, 0.45f };
+            const UI::SlotGridResult r = ui.slot_grid("bag", slots, 5, style, DRAG_ICON);
             if (r.dropped >= 0)       drop_into(bag_[std::size_t(r.dropped)], r.payload);
             if (r.right_clicked >= 0) bag_[std::size_t(r.right_clicked)] = EMPTY;
             tooltip_for(bag_, r.hovered);
@@ -335,11 +341,32 @@ private:
         if (ui.begin_panel("Hotbar", bar_config)) {
             std::array<UI::Slot, 5> slots;
             slots_of(hotbar_, slots);
-            for (std::size_t i = 0; i < slots.size(); i++) slots[i].label = KEYS[i];
+            for (std::size_t i = 0; i < slots.size(); i++) {
+                slots[i].label    = KEYS[i];
+                slots[i].cooldown = std::max(0.0f, ready_at_[i] - time_) / COOLDOWN;
+            }
             hotbar_id_ = ui.get_id("hotbar");
             const UI::SlotGridResult r = ui.slot_grid("hotbar", slots, 5, {}, DRAG_ICON);
             if (r.dropped >= 0) drop_into(hotbar_[std::size_t(r.dropped)], r.payload);
-            tooltip_for(hotbar_, r.hovered);
+
+            // Click: use it (a cooldown). Wheel: the next or previous icon.
+            if (r.clicked >= 0 && hotbar_[std::size_t(r.clicked)] != EMPTY && ready_at_[std::size_t(r.clicked)] <= time_)
+                ready_at_[std::size_t(r.clicked)] = time_ + COOLDOWN;
+            if (r.hovered >= 0 && r.wheel != 0.0f) {
+                int& icon = hotbar_[std::size_t(r.hovered)];
+                const int step = r.wheel > 0.0f ? 1 : -1;
+                icon = icon == EMPTY ? 0 : (icon + step + int(ICON_COUNT)) % int(ICON_COUNT);
+            }
+
+            // The text changes every frame while it cools down; the
+            // tooltip stays up (it's timed per slot, not per text)
+            if (r.hovered >= 0 && ready_at_[std::size_t(r.hovered)] > time_) {
+                char tip[64];
+                std::snprintf(tip, sizeof tip, "Cooling down\nReady in %.1f s", ready_at_[std::size_t(r.hovered)] - time_);
+                ui.tooltip(tip);
+            } else {
+                tooltip_for(hotbar_, r.hovered);
+            }
             ui.end_panel();
         }
 
@@ -433,6 +460,8 @@ private:
     std::array<int, 5>                hotbar_    = {};
     UI::Context::ID                   bag_id_    = 0;
     UI::Context::ID                   hotbar_id_ = 0;
+    std::array<float, 5>              ready_at_  = {}; // time_ a hotbar slot can be used again
+    static constexpr float            COOLDOWN   = 5.0f;
 
     std::vector<glm::vec2> markers_ = {};
     bool  quit_requested_ = false;

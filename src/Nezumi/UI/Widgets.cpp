@@ -259,16 +259,17 @@ bool Context::text_field(std::string_view label, std::string& value, std::size_t
         focus_seen_ = true;
         caret_ = std::min(caret_, value.size());
 
-        for (char c : typed_) {
-            if (value.size() >= max_length) break;
-            value.insert(value.begin() + static_cast<std::ptrdiff_t>(caret_), c);
-            caret_++;
-            changed = true;
-        }
-        typed_.clear();
-
-        for (ScanCode key : keys_) {
-            switch (key) {
+        // In the order they came, so "Backspace, 5" typed within one frame
+        // edits the same as typed slowly
+        for (const TextInput& in : text_in_) {
+            if (in.key == ScanCode::Unknown) {
+                if (value.size() >= max_length) continue;
+                value.insert(value.begin() + static_cast<std::ptrdiff_t>(caret_), in.c);
+                caret_++;
+                changed = true;
+                continue;
+            }
+            switch (in.key) {
                 case ScanCode::Backspace:
                     if (caret_ > 0) { value.erase(--caret_, 1); changed = true; }
                     break;
@@ -287,7 +288,7 @@ bool Context::text_field(std::string_view label, std::string& value, std::size_t
                     break;
             }
         }
-        keys_.clear();
+        text_in_.clear();
     }
 
     // Keep the caret in view
@@ -455,6 +456,7 @@ SlotGridResult Context::slot_grid(std::string_view label, std::span<const Slot> 
         if (hovered) {
             result.hovered = i;
             if (right_pressed_) result.right_clicked = i;
+            result.wheel = wheel_;
         }
         if (hovered) state[i] |= Hovered;
         if (held)    state[i] |= Held;
@@ -512,7 +514,11 @@ SlotGridResult Context::slot_grid(std::string_view label, std::span<const Slot> 
 
     for (int i = 0; i < n; i++) {
         const Slot& slot = slots[static_cast<std::size_t>(i)];
-        if (!slot.icon) continue;
+        if (!slot.icon) {
+            // An empty slot shows the style's emblem, if it has one
+            if (style.placeholder) draw_image_(icon_rect(i), style.placeholder, style.placeholder_tint, style.icon_radius);
+            continue;
+        }
         const float b = slot.disabled ? style.disabled_tint : 1.0f;
         const float a = (state[i] & DragSource) ? 0.35f : 1.0f; // ghost while dragged away
         draw_image_(icon_rect(i), slot.icon, { b, b, b, a }, style.icon_radius);
