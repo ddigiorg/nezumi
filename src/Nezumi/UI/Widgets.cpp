@@ -298,7 +298,8 @@ bool Context::range_slider(std::string_view label, int& lo, int& hi, int min, in
 // Text Field
 // -----------------------------------------------------------------------------
 
-bool Context::text_field(std::string_view label, std::string& value, std::size_t max_length) {
+bool Context::text_field(std::string_view label, std::string& value, std::size_t max_length,
+                         std::string_view hint) {
     if (!layout_.panel) return false;
 
     const ID               id      = id_(label);
@@ -393,7 +394,8 @@ bool Context::text_field(std::string_view label, std::string& value, std::size_t
     const Rect saved = clip_;
     clip_ = clip_.intersect(inner);
     const float y = box.min.y + snap_((box.height() - text_height_) * 0.5f);
-    draw_text_({ inner.min.x - offset, y }, value, style_.text);
+    if (value.empty() && focus_id_ != id && !hint.empty()) draw_text_({ inner.min.x, y }, hint, style_.text_dim);
+    else                                                   draw_text_({ inner.min.x - offset, y }, value, style_.text);
     if (focus_id_ == id) {
         draw_box_(Rect::from_size({ snap_(inner.min.x - offset + caret_x), y },
                                   { 1.5f, text_height_ }), style_.text);
