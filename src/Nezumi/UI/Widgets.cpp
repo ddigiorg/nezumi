@@ -587,11 +587,20 @@ SlotGridResult Context::slot_grid(std::string_view label, std::span<const Slot> 
 
     // Drawn in passes, all frames, then all icons, then overlays and text,
     // so a whole grid is a few texture runs whatever its size
+    // The icon's mask: as given, or the slot's rounding inside the inset
+    const float icon_radius = style.icon_radius >= 0.0f ? style.icon_radius
+                            : std::max(0.0f, style_.slot_rounding - style.icon_inset);
+
     for (int i = 0; i < n; i++) {
-        const Rect r = slot_rect(i);
-        if (style.frame) draw_nine_slice(r, style.frame);
-        else             draw_box_(r, style_.frame_bg, style_.frame_rounding,
-                                   style_.frame_border, style_.border_width);
+        const Rect  r    = slot_rect(i);
+        const Slot& slot = slots[static_cast<std::size_t>(i)];
+        if (style.frame) {
+            draw_nine_slice(r, style.frame);
+        } else {
+            const bool lit = state[i] & (Hovered | DropHover);
+            draw_box_(r, slot.tint.a > 0.0f ? slot.tint : style_.slot_bg, style_.slot_rounding,
+                      lit ? style_.slot_border_hovered : style_.slot_border, style_.border_width);
+        }
     }
 
     const auto icon_rect = [&](int i) {
@@ -604,13 +613,14 @@ SlotGridResult Context::slot_grid(std::string_view label, std::span<const Slot> 
     for (int i = 0; i < n; i++) {
         const Slot& slot = slots[static_cast<std::size_t>(i)];
         if (!slot.icon) {
-            // An empty slot shows the style's emblem, if it has one
-            if (style.placeholder) draw_image_(icon_rect(i), style.placeholder, style.placeholder_tint, style.icon_radius);
+            // An empty slot shows its own emblem, or the style's, if any
+            const Image& ph = slot.placeholder ? slot.placeholder : style.placeholder;
+            if (ph) draw_image_(icon_rect(i), ph, style.placeholder_tint, icon_radius);
             continue;
         }
         const float b = slot.disabled ? style.disabled_tint : 1.0f;
         const float a = (state[i] & DragSource) ? 0.35f : 1.0f; // ghost while dragged away
-        draw_image_(icon_rect(i), slot.icon, { b, b, b, a }, style.icon_radius);
+        draw_image_(icon_rect(i), slot.icon, { b, b, b, a }, icon_radius);
     }
 
     for (int i = 0; i < n; i++) {
@@ -621,12 +631,12 @@ SlotGridResult Context::slot_grid(std::string_view label, std::span<const Slot> 
             const float h = snap_(r.height() * std::clamp(slot.cooldown, 0.0f, 1.0f));
             draw_box_({ r.min, { r.max.x, r.min.y + h } }, style.cooldown, 0.0f);
         }
-        if ((state[i] & Held) || slot.flash) draw_box_(r, style.pressed, style.icon_radius);
-        if (state[i] & DropHover)            draw_box_(r, style.drop_hover, style.icon_radius);
+        if ((state[i] & Held) || slot.flash) draw_box_(r, style.pressed, icon_radius);
+        if (state[i] & DropHover)            draw_box_(r, style.drop_hover, icon_radius);
         else if (state[i] & Hovered) {
-            draw_box_(r, style.hover, style.icon_radius);
+            draw_box_(r, style.hover, icon_radius);
             if (style.highlight.a > 0.0f)
-                draw_box_(slot_rect(i), {}, style_.frame_rounding, style.highlight, 1.0f);
+                draw_box_(slot_rect(i), {}, style_.slot_rounding, style.highlight, 1.0f);
         }
     }
 

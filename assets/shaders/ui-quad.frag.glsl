@@ -104,6 +104,13 @@ void main() {
         float w = max(length(vec2(dFdx(d), dFdy(d))), 1e-5); // not fwidth: see text-glyph-sdf.frag
         float a = clamp(d / w + 0.5, 0.0, 1.0) * v_color.a;
         pm = vec4(v_color.rgb * a, a);
+
+        // An outline params.y SDF units wide in border_color, under the fill
+        if (v_params.y > 0.0) {
+            float o  = clamp((d + v_params.y) / w + 0.5, 0.0, 1.0) * v_border_color.a;
+            vec4  po = vec4(v_border_color.rgb * o, o);
+            pm = pm + po * (1.0 - pm.a);
+        }
     }
     else if (shape == SHAPE_CROSS) {
         vec2  e = h - stroke;

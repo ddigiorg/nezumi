@@ -44,12 +44,12 @@ struct UIQuad {
     glm::vec4 pos_box      = { 0.0f, 0.0f, 0.0f, 0.0f }; // view { min_x, min_y, max_x, max_y }
     glm::vec4 tex_box      = { 0.0f, 0.0f, 0.0f, 0.0f }; // Glyph, Image: atlas { min_u, min_v, max_u, max_v }, v down
     glm::vec4 color        = { 1.0f, 1.0f, 1.0f, 1.0f }; // fill (or glyph / icon color)
-    glm::vec4 border_color = { 0.0f, 0.0f, 0.0f, 0.0f }; // Box: border
+    glm::vec4 border_color = { 0.0f, 0.0f, 0.0f, 0.0f }; // Box: border; Glyph: outline
     glm::vec4 clip_box     = { -1e9f, -1e9f, 1e9f, 1e9f }; // view; nothing outside is drawn
 
     // x: corner radius (Box, Image)
     // y: border width (Box, GradientRing) or stroke width (Cross, Check), in
-    //    view units
+    //    view units; Glyph: outline width in SDF value units, in border_color
     // z: UIQuadShape
     // w: glyph weight, in SDF value units (Glyph; see TextGlyphSDF), the
     //    material's array layer (Image), or the gradient's angle in radians

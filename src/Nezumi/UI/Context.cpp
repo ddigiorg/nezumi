@@ -867,13 +867,16 @@ void Context::draw_chrome_(Panel& p) {
         if (p.closable) {
             const Rect cr = close_rect_(p);
             if (p.close_hot) draw_box_(cr, style_.close_hovered, style_.frame_rounding);
-            draw_shape_(cr.shrink(glm::vec2(snap_(cr.width() * 0.34f))), UIQuadShape::Cross,
-                        p.close_hot ? style_.close_text_hovered : style_.text_dim, 1.5f);
+            const Rect x = cr.shrink(glm::vec2(snap_(cr.width() * 0.34f)));
+            // Outlined like the text, so it reads with no panel behind it
+            if (style_.text_outline_width > 0.0f && style_.text_outline.a > 0.0f && !p.close_hot)
+                draw_shape_(x, UIQuadShape::Cross, style_.text_outline, 1.5f + 2.0f * style_.text_outline_width);
+            draw_shape_(x, UIQuadShape::Cross, p.close_hot ? style_.close_text_hovered : style_.text_dim, 1.5f);
         }
     }
 
     const float hh = header_height_(p);
-    if (hh > 0.0f) draw_box_({ { r.min.x + bw, r.min.y + hh - line }, { r.max.x - bw, r.min.y + hh } }, style_.separator);
+    if (hh > 0.0f) draw_box_({ { r.min.x + bw, r.min.y + hh - line }, { r.max.x - bw, r.min.y + hh } }, style_.header_line);
 
     draw_tabs_(p);
 
@@ -1061,7 +1064,7 @@ void Context::draw_tooltip_(std::string_view text, const Rect& anchor) {
     }
     const Rect box = Rect::from_size(snap_(pos), size);
 
-    draw_box_(box, style_.tooltip_bg, style_.frame_rounding, style_.frame_border, style_.border_width);
+    draw_box_(box, style_.tooltip_bg, style_.frame_rounding, style_.tooltip_border, style_.border_width);
     glm::vec2 at = box.min + pad;
     for (std::size_t from = 0; from <= text.size(); at.y += line_h) {
         const std::size_t end = std::min(text.find('\n', from), text.size());
@@ -1244,6 +1247,12 @@ float Context::draw_text_(glm::vec2 pos, std::string_view text, const glm::vec4&
         .valign = Render::TextVAlign::Baseline,
     };
 
+    // The outline (Style::text_outline_width, in points) in SDF value units:
+    // points -> atlas pixels -> 1 / (2 * spread) per atlas pixel
+    const bool  outlined = style_.text_outline_width > 0.0f && style_.text_outline.a > 0.0f;
+    const float outline  = outlined
+        ? style_.text_outline_width / text_scale / (2.0f * font_->sdf_spread()) : 0.0f;
+
     // The baseline on a whole pixel, so the bottoms of letters (and, at a
     // given size, their x-height and cap height) land the same way on every
     // line instead of straddling two pixels
@@ -1259,10 +1268,11 @@ float Context::draw_text_(glm::vec2 pos, std::string_view text, const glm::vec4&
 
             list_->push_back({ UIQuad{
                 .pos_box  = box4(r),
-                .tex_box  = glyph.tex_box,
-                .color    = color,
-                .clip_box = box4(clip_),
-                .params   = { 0.0f, 0.0f, float(UIQuadShape::Glyph), 0.0f },
+                .tex_box      = glyph.tex_box,
+                .color        = color,
+                .border_color = outlined ? style_.text_outline : glm::vec4(0.0f),
+                .clip_box     = box4(clip_),
+                .params       = { 0.0f, outline, float(UIQuadShape::Glyph), 0.0f },
             }, font_->material() });
         });
 
