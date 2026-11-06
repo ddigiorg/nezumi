@@ -241,6 +241,7 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     p.anchor   = config.position;
     p.pivot    = config.pivot;
     p.hit_box  = config.hit_box;
+    p.icon     = config.icon;
     p.closable = open != nullptr && !p.has(PanelFlags::NoTitleBar);
     p.drawn    = frame_;
     p.chrome.clear();
@@ -260,7 +261,12 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
         const Rect title_bar = Rect::from_size(p.pos, { p.size.x, title_height_(p) });
         const bool on_close  = p.closable && close_rect_(p).contains(mouse_);
 
-        if (edges != EdgeNone || (can_move && title_bar.contains(mouse_) && !on_close)) {
+        // Tabs in the title bar are for clicking, not dragging
+        bool on_tab = false;
+        if (tabs_in_title_(p))
+            for (std::size_t i = 0; i < p.tab_x.size(); i++) on_tab = on_tab || tab_rect_(p, i).contains(mouse_);
+
+        if (edges != EdgeNone || (can_move && title_bar.contains(mouse_) && !on_close && !on_tab)) {
             if (edges != EdgeNone) update_panel_drag_(p); // sets the resize cursor
             if (mouse_pressed_) {
                 drag_panel_ = id;
@@ -372,9 +378,10 @@ void Context::end_panel() {
 
     if (p.has(PanelFlags::AutoSize)) {
         const glm::vec2 old_pos = p.pos;
+        const float close_w = p.closable ? title_height_(p) : 0.0f;
         const float title_w = p.has(PanelFlags::NoTitleBar) ? 0.0f
-            : text_width_(p.title) + 2.0f * padding_(p).x +
-              (p.closable ? title_height_(p) : 0.0f);
+            : tabs_in_title_(p) ? (p.tab_x.empty() ? icon_rect_(p).max.x - p.pos.x : p.tab_x.back()) + close_w
+            : text_width_(p.title) + 2.0f * padding_(p).x + close_w;
 
         p.size = p.content + 2.0f * padding_(p) + glm::vec2(0.0f, header_height_(p));
         p.size.x = std::max(p.size.x, title_w);
@@ -588,7 +595,16 @@ void Context::clamp_to_screen_(Panel& panel) const {
 
 float Context::title_height_(const Panel& panel) const {
     if (panel.has(PanelFlags::NoTitleBar)) return 0.0f;
+    // Tall enough for a tab when they're in it
+    if (tabs_in_title_(panel))
+        return snap_(text_height_ + 2.0f * style_.frame_padding.y + 2.0f * style_.title_padding);
     return snap_(text_height_ + 2.0f * style_.title_padding);
+}
+
+Rect Context::icon_rect_(const Panel& panel) const {
+    const float h = title_height_(panel);
+    const float s = snap_(h - 2.0f * style_.title_padding);
+    return Rect::from_size(snap_(panel.pos + glm::vec2((h - s) * 0.5f)), glm::vec2(s));
 }
 
 // -----------------------------------------------------------------------------
@@ -608,7 +624,7 @@ void Context::set_panel_tab(std::string_view title, int tab) {
 }
 
 float Context::tabs_height_(const Panel& panel) const {
-    if (panel.tabs.empty()) return 0.0f;
+    if (panel.tabs.empty() || tabs_in_title_(panel)) return 0.0f;
     return snap_(text_height_ + 2.0f * style_.frame_padding.y + 2.0f * style_.title_padding);
 }
 
@@ -618,8 +634,9 @@ void Context::update_tabs_(Panel& p, std::span<const std::string_view> tabs) {
     p.tab_hot = -1;
     if (tabs.empty()) { p.tab = 0; return; }
 
-    // Left to right from the padding, each as wide as its label
-    float x = padding_(p).x;
+    // Left to right from the padding (or the icon), each as wide as its
+    // label
+    float x = tabs_in_title_(p) ? icon_rect_(p).max.x - p.pos.x + style_.title_padding : padding_(p).x;
     for (std::size_t i = 0; i < tabs.size(); i++) {
         p.tabs[i]  = std::string(visible_(tabs[i]));
         x         += snap_(text_width_(p.tabs[i]) + 3.0f * style_.frame_padding.x);
@@ -630,13 +647,9 @@ void Context::update_tabs_(Panel& p, std::span<const std::string_view> tabs) {
 
     // Hover and click; a click on another tab picks it and scrolls the
     // content back to the top
-    const float top = p.pos.y + title_height_(p) + style_.title_padding;
-    const float h   = tabs_height_(p) - style_.title_padding;
     if (hot_panel_ != p.id || on_popup_ || active_id_ != 0) return;
     for (std::size_t i = 0; i < tabs.size(); i++) {
-        const float left = i == 0 ? padding_(p).x : p.tab_x[i - 1] + thickness_(2.0f);
-        const Rect  r    = Rect{ { p.pos.x + left, top }, { p.pos.x + p.tab_x[i], top + h } };
-        if (!r.contains(mouse_)) continue;
+        if (!tab_rect_(p, i).contains(mouse_)) continue;
         p.tab_hot  = static_cast<int>(i);
         ui_cursor_ = CursorStyle::Hand;
         if (mouse_pressed_ && p.tab != static_cast<int>(i)) {
@@ -646,20 +659,38 @@ void Context::update_tabs_(Panel& p, std::span<const std::string_view> tabs) {
     }
 }
 
+Rect Context::tab_rect_(const Panel& p, std::size_t i) const {
+    // Under the title bar, or in it (down to its bottom edge, so the picked
+    // one runs into the content)
+    const float top  = p.pos.y + (tabs_in_title_(p) ? 0.0f : title_height_(p)) + style_.title_padding;
+    const float bot  = p.pos.y + header_height_(p);
+    const float left = i == 0 ? (tabs_in_title_(p) ? icon_rect_(p).max.x - p.pos.x + style_.title_padding : padding_(p).x)
+                              : p.tab_x[i - 1] + thickness_(2.0f);
+    return { { p.pos.x + left, top }, { p.pos.x + p.tab_x[i], bot } };
+}
+
 void Context::draw_tabs_(const Panel& p) {
     if (p.tabs.empty()) return;
     const Rect  r   = p.rect();
     const float bw  = thickness_(style_.border_width);
-    const float top = r.min.y + title_height_(p) + style_.title_padding;
     const float bot = r.min.y + header_height_(p);
+    const bool  in_title = tabs_in_title_(p);
 
-    // A line under the strip; the picked tab sits on it, open to the content
-    draw_box_({ { r.min.x + bw, bot - bw }, { r.max.x - bw, bot } }, style_.separator);
+    // A line under the strip (the title bar has its own); the picked tab
+    // sits on it, open to the content
+    if (!in_title) draw_box_({ { r.min.x + bw, bot - bw }, { r.max.x - bw, bot } }, style_.separator);
     for (std::size_t i = 0; i < p.tabs.size(); i++) {
-        const float left = r.min.x + (i == 0 ? padding_(p).x : p.tab_x[i - 1] + thickness_(2.0f));
-        const Rect  tab  = { { left, top }, { r.min.x + p.tab_x[i], bot } };
+        const Rect  tab    = tab_rect_(p, i);
         const bool  picked = static_cast<int>(i) == p.tab;
         const bool  hot    = static_cast<int>(i) == p.tab_hot;
+
+        // In the title bar the others are just their labels, like a
+        // browser's background tabs, until hovered
+        if (in_title && !picked) {
+            if (hot) draw_box_(tab.shrink({ 0.0f, thickness_(2.0f) }), style_.frame_bg_hovered, style_.frame_rounding);
+            draw_text_in_(tab, p.tabs[i], hot ? style_.text : style_.text_dim, 0.0f, true);
+            continue;
+        }
 
         const glm::vec4& bg = picked ? style_.panel_bg : hot ? style_.frame_bg_hovered : style_.title_bg;
         draw_box_(tab, bg, style_.frame_rounding);
@@ -739,10 +770,14 @@ void Context::draw_chrome_(Panel& p) {
         draw_box_({ { bar.min.x, bar.center().y }, bar.max }, bg);
         draw_box_({ { r.min.x, bar.max.y }, { r.max.x, bar.max.y + bw } }, style_.panel_border);
 
-        clip_ = bar;
-        draw_text_({ r.min.x + style_.panel_padding.x, r.min.y + style_.title_padding },
-                   p.title, style_.heading);
-        clip_ = NO_CLIP;
+        if (tabs_in_title_(p)) {
+            draw_image_(icon_rect_(p), p.icon, glm::vec4(1.0f));
+        } else {
+            clip_ = bar;
+            draw_text_({ r.min.x + style_.panel_padding.x, r.min.y + style_.title_padding },
+                       p.title, style_.heading);
+            clip_ = NO_CLIP;
+        }
 
         if (p.closable) {
             const Rect cr = close_rect_(p);

@@ -7,7 +7,8 @@
 // - "Widgets" is movable and resizable, and scrolls when its content doesn't
 //   fit (mouse wheel over it).
 // - "Settings" sizes itself to its content (AutoSize) and can only be moved.
-//   Its tabs (Video, Audio, Game) sit under the title (PanelConfig::tabs).
+//   Its tabs (Video, Audio, Game) sit in the title bar beside an icon,
+//   browser-style (PanelConfig::tabs and icon); drag it by the icon.
 // - "Main Menu" has no title bar and stays centered on the screen, even when
 //   the window is resized (PinPosition with a pivot).
 // - "Bag" and "Hotbar" are slot grids (UI::Context::slot_grid) of icons cut
@@ -251,6 +252,7 @@ private:
             .pivot    = { 1.0f, 0.0f }, // top-right corner at position
             .flags    = UI::PanelFlags::Movable | UI::PanelFlags::AutoSize,
             .tabs     = SETTINGS_TABS,
+            .icon     = icons_[SETTINGS_ICON],
         };
         if (!ui.begin_panel("Settings", &show_settings_, config)) return;
 
@@ -473,6 +475,7 @@ private:
     int  music_      = 60;
     int  difficulty_ = 1;
     static constexpr std::string_view SETTINGS_TABS[] = { "Video", "Audio", "Game" };
+    static constexpr std::size_t      SETTINGS_ICON   = 3;
 
     // The range slider, and its ends as typed
     int         range_lo_      = 20;
