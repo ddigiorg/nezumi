@@ -21,33 +21,40 @@
 //                   UI::PanelFlags::PinPosition,
 //   };
 //
-//   // Tabs along the top, under the title (they don't scroll with the
-//   // content); draw the one Context::panel_tab() says is picked
+//   // Tabs: every panel has one header row, left to right: its icon and
+//   // title (both optional), its tabs, empty space to drag it by, and the
+//   // close button. Tabs that don't fit there move to a strip of their own
+//   // under the header (TabPlacement::Auto). Draw the one panel_tab() says
+//   // is picked; the content scrolls back to the top when it changes.
 //   static constexpr std::string_view TABS[] = { "Inventory", "Crafting" };
-//   if (ui.begin_panel("Settlement", &open, { .tabs = TABS })) {
+//   if (ui.begin_panel("Settlement", &open, { .tabs = TABS, .icon = banner })) {
 //       if (ui.panel_tab() == 0) ...inventory...
 //       else                     ...crafting...
 //       ui.end_panel();
 //   }
 //
-//   // Browser-style: an icon in place of the title and the tabs beside it,
-//   // all in the title bar; drag the panel by the icon (or the bar's empty
-//   // part), close it with the X
-//   if (ui.begin_panel("Settlement", &open, { .tabs = TABS, .icon = banner })) ...
+//   // Browser-style: the icon alone names the panel, the tabs beside it
+//   ui.begin_panel("Settlement", &open, { .flags = UI::PanelFlags::Movable |
+//       UI::PanelFlags::HideTitle, .tabs = TABS, .icon = banner });
+//
+//   // Tabs with icons (from a sprite sheet), or icons only (empty labels)
+//   static constexpr std::string_view LABELS[] = { "", "", "" };
+//   const UI::Image icons[] = { bag, hammer, scroll };
+//   ui.begin_panel("Pack", &open, { .tabs = LABELS, .tab_icons = icons });
 // =============================================================================
 
 #pragma once
 #include "Nezumi/Core/EnumClassFlags.hpp"
 #include "Nezumi/UI/Image.hpp"
 #include "Nezumi/UI/Rect.hpp"
-#include <cstdint>     // uint8_t
+#include <cstdint>     // uint8_t, uint16_t
 #include <glm/glm.hpp> // vec2
 #include <span>        // span
 #include <string_view> // string_view
 
 namespace Nezumi::UI {
 
-enum class PanelFlags : std::uint8_t {
+enum class PanelFlags : std::uint16_t {
     None        = 0,
     Movable     = 1u << 0, // drag by the title bar
     Resizable   = 1u << 1, // drag any edge or corner
@@ -55,8 +62,17 @@ enum class PanelFlags : std::uint8_t {
     NoTitleBar  = 1u << 3, // no title bar, so no close button and no dragging
     PinPosition = 1u << 4, // apply position and pivot every frame
     NoBackground = 1u << 5, // no background, border, shadow or padding: the game draws its own
+    HideTitle   = 1u << 6, // the header shows the icon but not the title text
 };
 ENUM_CLASS_FLAGS(PanelFlags);
+
+// Where a panel's tabs go
+enum class TabPlacement : std::uint8_t {
+    Auto   = 0, // in the header when they fit beside the icon, title and
+                // close button, else in a strip under it
+    Header = 1, // always in the header (the panel widens to fit them)
+    Strip  = 2, // always in a strip under the header
+};
 
 struct PanelConfig {
     // Top-left corner in screen pixels (y down), adjusted by the pivot
@@ -88,16 +104,19 @@ struct PanelConfig {
     // clicks on the see-through parts reach the game.
     Rect hit_box = {};
 
-    // Tabs in a strip under the title bar, left to right; empty: none.
-    // Clicking one picks it (the content scrolls back to the top), and
-    // Context::panel_tab() says which is picked. Must stay valid for the
-    // begin_panel call.
+    // Tabs, left to right; empty: none. Clicking one picks it (the content
+    // scrolls back to the top), and Context::panel_tab() says which is
+    // picked. Must stay valid for the begin_panel call. An empty label
+    // with an icon makes an icon-only tab.
     std::span<const std::string_view> tabs = {};
 
-    // Shown in the title bar's left end in place of the title, which then
-    // only names the panel (its id). The tabs move up into the title bar
-    // beside it, like a browser's, and the panel is dragged by the icon or
-    // the bar's empty part, not by the tabs. None: the title as text.
+    // An icon in front of each tab's label, in the same order as tabs. May
+    // be shorter than tabs, and an invalid Image means no icon.
+    std::span<const Image> tab_icons = {};
+
+    TabPlacement tab_placement = TabPlacement::Auto;
+
+    // At the header's left end, before the title. None: no icon.
     Image icon = {};
 };
 

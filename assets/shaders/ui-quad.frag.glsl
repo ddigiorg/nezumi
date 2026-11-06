@@ -33,6 +33,7 @@ const int SHAPE_TRIANGLE_RIGHT = 5;
 const int SHAPE_CIRCLE         = 6;
 const int SHAPE_CORNER         = 7;
 const int SHAPE_IMAGE          = 8;
+const int SHAPE_GRADIENT_RING  = 9;
 
 // Distance to a rounded box centered at the origin.
 float sd_round_box(vec2 p, vec2 half_size, float r) {
@@ -141,6 +142,20 @@ void main() {
             mask = clamp(0.5 - d / aa, 0.0, 1.0);
         }
         pm = c * mask;
+    }
+    else if (shape == SHAPE_GRADIENT_RING) {
+        // A rounded box's border only, blending color into border_color
+        // across the box along the angle in params.w (radians, 0: left to
+        // right, counterclockwise; view y is up)
+        float d  = sd_round_box(p, h, v_params.x);
+        float aa = max(fwidth(d), 1e-5);
+        float ring = clamp(-d / aa, 0.0, 1.0) - clamp(-(d + v_params.y) / aa, 0.0, 1.0);
+
+        vec2  dir  = vec2(cos(v_params.w), sin(v_params.w));
+        float span = max(abs(dir.x) * h.x + abs(dir.y) * h.y, 1e-5);
+        float t    = clamp(dot(p, dir) / span * 0.5 + 0.5, 0.0, 1.0);
+        vec4  c    = mix(v_color, v_border_color, t);
+        pm = vec4(c.rgb * c.a, c.a) * ring;
     }
     else if (shape == SHAPE_CORNER) {
         float d = sd_triangle(p, vec2(h.x, h.y), vec2(h.x, -h.y), vec2(-h.x, -h.y));

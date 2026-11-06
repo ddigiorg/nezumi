@@ -68,9 +68,12 @@ bool Context::button(std::string_view label, float width) {
     bool hovered = false, held = false;
     const bool clicked = behavior_(id, r, &hovered, &held);
 
+    // An outline that lights up in the accent, with the label
+    const bool lit = hovered || held;
     const glm::vec4& bg = held ? style_.button_active : hovered ? style_.button_hovered : style_.button;
-    draw_box_(r, bg, style_.frame_rounding, style_.frame_border, style_.border_width);
-    draw_text_in_(r, visible, style_.text, style_.frame_padding.x, true);
+    draw_box_(r, bg, style_.frame_rounding, lit ? style_.button_border_hovered : style_.button_border,
+              style_.border_width);
+    draw_text_in_(r, visible, lit ? style_.button_text_hovered : style_.text, style_.frame_padding.x, true);
 
     return clicked;
 }
@@ -96,7 +99,8 @@ bool Context::checkbox(std::string_view label, bool& value) {
     if (clicked) value = !value;
 
     const glm::vec4& bg = held ? style_.frame_bg_active : hovered ? style_.frame_bg_hovered : style_.frame_bg;
-    draw_box_(box, bg, style_.frame_rounding, style_.frame_border, style_.border_width);
+    draw_box_(box, bg, style_.frame_rounding, hovered ? style_.frame_border_hovered : style_.frame_border,
+              style_.border_width);
     if (value) {
         draw_shape_(box.shrink(glm::vec2(snap_(s * 0.18f))), UIQuadShape::Check,
                     style_.accent, std::max(2.0f, s * 0.14f));
@@ -126,16 +130,23 @@ bool Context::toggle(std::string_view label, bool& value) {
     const bool clicked = behavior_(id, r, &hovered);
     if (clicked) value = !value;
 
-    glm::vec4 bg = value ? style_.accent_dim : style_.frame_bg;
+    // Off: a sunken track. On: tinted and outlined in the accent.
+    glm::vec4 bg = value ? style_.accent : style_.frame_bg;
+    if (value) bg.a *= 0.18f;
     if (hovered && !value) bg = style_.frame_bg_hovered;
-    draw_box_(track, bg, th * 0.5f, style_.frame_border, style_.border_width);
+    const glm::vec4& border = value ? style_.accent : hovered ? style_.frame_border_hovered : style_.frame_border;
+    // A pill with a round knob, or square with a square one in a square style
+    const bool round = style_.frame_rounding > 0.0f;
+    draw_box_(track, bg, round ? th * 0.5f : 0.0f, border, style_.border_width);
 
     const float     inset = 3.0f;
     const float     knob  = th - 2.0f * inset;
     const glm::vec2 at    = value ? glm::vec2(track.max.x - inset - knob, track.min.y + inset)
                                   : track.min + glm::vec2(inset);
-    draw_shape_(Rect::from_size(at, glm::vec2(knob)), UIQuadShape::Circle,
-                value ? style_.accent : style_.text_dim);
+    const Rect       knob_rect  = Rect::from_size(at, glm::vec2(knob));
+    const glm::vec4& knob_color = value ? style_.accent : style_.text_dim;
+    if (round) draw_shape_(knob_rect, UIQuadShape::Circle, knob_color);
+    else       draw_box_(knob_rect, knob_color);
 
     draw_label_(r, track.max.x, visible);
 
@@ -193,7 +204,8 @@ bool Context::slider_(std::string_view label, float& value, float min, float max
 
     const float t = range != 0.0f ? std::clamp((value - min) / range, 0.0f, 1.0f) : 0.0f;
     const glm::vec4& bg = held ? style_.frame_bg_active : hovered ? style_.frame_bg_hovered : style_.frame_bg;
-    draw_box_(track, bg, style_.frame_rounding, style_.frame_border, style_.border_width);
+    draw_box_(track, bg, style_.frame_rounding, (held || hovered) ? style_.frame_border_hovered : style_.frame_border,
+              style_.border_width);
 
     const Rect grab = Rect::from_size(
         { track.min.x + snap_(t * (w - grab_w)), track.min.y + 2.0f },
@@ -261,7 +273,8 @@ bool Context::range_slider(std::string_view label, int& lo, int& hi, int min, in
     }
 
     const glm::vec4& bg = held ? style_.frame_bg_active : hovered ? style_.frame_bg_hovered : style_.frame_bg;
-    draw_box_(track, bg, style_.frame_rounding, style_.frame_border, style_.border_width);
+    draw_box_(track, bg, style_.frame_rounding, (held || hovered) ? style_.frame_border_hovered : style_.frame_border,
+              style_.border_width);
 
     // The span between the grabs, then the grabs
     const float xl = track.min.x + snap_(to_t(lo) * travel);
@@ -372,7 +385,9 @@ bool Context::text_field(std::string_view label, std::string& value, std::size_t
     const float offset = focus_id_ == id ? field_scroll_ : 0.0f;
 
     const glm::vec4& bg     = hovered ? style_.frame_bg_hovered : style_.frame_bg;
-    const glm::vec4& border = focus_id_ == id ? style_.accent : style_.frame_border;
+    const glm::vec4& border = focus_id_ == id ? style_.accent
+                            : hovered         ? style_.frame_border_hovered
+                            :                   style_.frame_border;
     draw_box_(box, bg, style_.frame_rounding, border, style_.border_width);
 
     const Rect saved = clip_;
@@ -416,7 +431,9 @@ bool Context::dropdown(std::string_view label, int& selected,
     const glm::vec4& bg = (held || open) ? style_.frame_bg_active
                         : hovered        ? style_.frame_bg_hovered
                         :                  style_.frame_bg;
-    draw_box_(box, bg, style_.frame_rounding, style_.frame_border, style_.border_width);
+    draw_box_(box, bg, style_.frame_rounding,
+              open ? style_.accent : (held || hovered) ? style_.frame_border_hovered : style_.frame_border,
+              style_.border_width);
 
     const float arrow = snap_(h * 0.3f);
     const Rect  text_box = { box.min, { box.max.x - arrow - 2.0f * style_.frame_padding.x, box.max.y } };
@@ -456,7 +473,7 @@ bool Context::dropdown(std::string_view label, int& selected,
     clip_ = { { -1e9f, -1e9f }, { 1e9f, 1e9f } };
 
     // Opaque, so the panel underneath doesn't show through the choices
-    glm::vec4 list_bg = style_.panel_bg;
+    glm::vec4 list_bg = style_.tooltip_bg;
     list_bg.a = 1.0f;
     draw_box_(list, list_bg, style_.frame_rounding, style_.frame_border, style_.border_width);
 

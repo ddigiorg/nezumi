@@ -242,6 +242,7 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     p.pivot    = config.pivot;
     p.hit_box  = config.hit_box;
     p.icon     = config.icon;
+    p.tab_placement = config.tab_placement;
     p.closable = open != nullptr && !p.has(PanelFlags::NoTitleBar);
     p.drawn    = frame_;
     p.chrome.clear();
@@ -280,12 +281,12 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     }
 
     clamp_to_screen_(p);
-    update_tabs_(p, config.tabs);
+    update_tabs_(p, config.tabs, config.tab_icons);
 
     // Layout: content inside the padding and below the title, scrolled.
     // AutoSize panels grow to fit, so they never clip or scroll.
     const float title_h = header_height_(p);
-    const float border  = p.has(PanelFlags::NoBackground) ? 0.0f : thickness_(style_.border_width);
+    const float border  = p.has(PanelFlags::NoBackground) ? 0.0f : thickness_(style_.panel_border_width);
     const Rect  inner   = Rect{ { p.pos.x, p.pos.y + title_h }, p.pos + p.size }
                               .shrink(glm::vec2(border));
     const Rect  content = Rect{ { p.pos.x, p.pos.y + title_h }, p.pos + p.size }
@@ -378,14 +379,8 @@ void Context::end_panel() {
 
     if (p.has(PanelFlags::AutoSize)) {
         const glm::vec2 old_pos = p.pos;
-        const float close_w = p.closable ? title_height_(p) : 0.0f;
-        const float title_w = p.has(PanelFlags::NoTitleBar) ? 0.0f
-            : tabs_in_title_(p) ? (p.tab_x.empty() ? icon_rect_(p).max.x - p.pos.x : p.tab_x.back()) + close_w
-            : text_width_(p.title) + 2.0f * padding_(p).x + close_w;
-
         p.size = p.content + 2.0f * padding_(p) + glm::vec2(0.0f, header_height_(p));
-        p.size.x = std::max(p.size.x, title_w);
-        if (!p.tab_x.empty()) p.size.x = std::max(p.size.x, p.tab_x.back() + padding_(p).x);
+        p.size.x = std::max(p.size.x, header_width_(p, tabs_in_title_(p)));
         p.size   = glm::max(p.size, p.min_size);
 
         // A centered (pivoted) panel can only be placed once its size is
@@ -593,18 +588,68 @@ void Context::clamp_to_screen_(Panel& panel) const {
     panel.size = snap_(panel.size);
 }
 
+// -----------------------------------------------------------------------------
+// Header
+//
+// One row along the top of every panel (but NoTitleBar ones), left to right:
+// the icon and the title (both optional), the tabs (when they fit, see
+// TabPlacement), empty space to drag the panel by, and the close button.
+// Tabs that don't fit get a strip of their own, as tall as the header,
+// right under it. Every x here is from the panel's left edge.
+// -----------------------------------------------------------------------------
+
 float Context::title_height_(const Panel& panel) const {
     if (panel.has(PanelFlags::NoTitleBar)) return 0.0f;
-    // Tall enough for a tab when they're in it
-    if (tabs_in_title_(panel))
-        return snap_(text_height_ + 2.0f * style_.frame_padding.y + 2.0f * style_.title_padding);
-    return snap_(text_height_ + 2.0f * style_.title_padding);
+    return snap_(text_height_ + 2.0f * style_.title_padding + 2.0f * style_.frame_padding.y);
 }
 
 Rect Context::icon_rect_(const Panel& panel) const {
     const float h = title_height_(panel);
-    const float s = snap_(h - 2.0f * style_.title_padding);
-    return Rect::from_size(snap_(panel.pos + glm::vec2((h - s) * 0.5f)), glm::vec2(s));
+    const float s = snap_(text_height_ + 2.0f * style_.frame_padding.y - 4.0f);
+    return Rect::from_size(snap_(panel.pos + glm::vec2(padding_(panel).x, (h - s) * 0.5f)), glm::vec2(s));
+}
+
+float Context::lead_end_(const Panel& p) const {
+    if (p.has(PanelFlags::NoTitleBar)) return 0.0f;
+    float x = padding_(p).x;
+    bool  any = false;
+    if (p.icon) { x = icon_rect_(p).max.x - p.pos.x; any = true; }
+    if (shows_title_(p)) {
+        if (any) x += style_.title_padding;
+        x  += text_width_(p.title);
+        any = true;
+    }
+    return any ? snap_(x) : 0.0f;
+}
+
+float Context::tab_width_(const Panel& p, std::size_t i) const {
+    const bool  has_icon  = i < p.tab_icons.size() && p.tab_icons[i];
+    const bool  has_label = !p.tabs[i].empty();
+    float w = 2.0f * style_.tab_padding;
+    if (has_icon)              w += snap_(text_height_);
+    if (has_icon && has_label) w += style_.title_padding;
+    if (has_label)             w += text_width_(p.tabs[i]);
+    return snap_(w);
+}
+
+float Context::header_width_(const Panel& p, bool tabs_inline) const {
+    if (p.has(PanelFlags::NoTitleBar)) return 0.0f;
+    const float h     = title_height_(p);
+    const float bw    = thickness_(style_.panel_border_width);
+    float       tabs  = 0.0f;
+    for (std::size_t i = 0; i < p.tabs.size(); i++) tabs += tab_width_(p, i);
+
+    // Some room left to drag the panel by, and the close button
+    const float lead  = lead_end_(p);
+    const float right = (p.closable ? h : 0.0f) + bw + (p.closable ? h * 0.5f : padding_(p).x);
+    const float in_header = tabs_inline ? (lead > 0.0f ? lead + style_.title_padding * 0.5f : bw) + tabs
+                                        : std::max(lead, padding_(p).x);
+    float w = in_header + right;
+
+    // A strip as wide as its tabs
+    if (!tabs_inline && !p.tabs.empty())
+        w = std::max(w, std::max(bw, padding_(p).x - style_.tab_padding) * 2.0f + tabs);
+    return snap_(w);
 }
 
 // -----------------------------------------------------------------------------
@@ -625,23 +670,45 @@ void Context::set_panel_tab(std::string_view title, int tab) {
 
 float Context::tabs_height_(const Panel& panel) const {
     if (panel.tabs.empty() || tabs_in_title_(panel)) return 0.0f;
-    return snap_(text_height_ + 2.0f * style_.frame_padding.y + 2.0f * style_.title_padding);
+    return title_height_(panel) > 0.0f ? title_height_(panel)
+                                       : snap_(text_height_ + 2.0f * style_.title_padding + 2.0f * style_.frame_padding.y);
 }
 
-void Context::update_tabs_(Panel& p, std::span<const std::string_view> tabs) {
+void Context::update_tabs_(Panel& p, std::span<const std::string_view> tabs, std::span<const Image> icons) {
     p.tabs.resize(tabs.size());
     p.tab_x.resize(tabs.size());
+    p.tab_icons.assign(icons.begin(), icons.begin() + std::min(icons.size(), tabs.size()));
     p.tab_hot = -1;
-    if (tabs.empty()) { p.tab = 0; return; }
+    if (tabs.empty()) { p.tab = 0; p.tabs_inline = false; return; }
+    for (std::size_t i = 0; i < tabs.size(); i++) p.tabs[i] = std::string(visible_(tabs[i]));
 
-    // Left to right from the padding (or the icon), each as wide as its
-    // label
-    float x = tabs_in_title_(p) ? icon_rect_(p).max.x - p.pos.x + style_.title_padding : padding_(p).x;
+    // In the header or in a strip. Auto asks whether the header fits them
+    // in the width the panel has without them: its content's (AutoSize, as
+    // measured last frame) or its own. Placing the tabs never changes that
+    // width, so the choice doesn't flip back and forth between frames.
+    switch (p.tab_placement) {
+        case TabPlacement::Header: p.tabs_inline = true;  break;
+        case TabPlacement::Strip:  p.tabs_inline = false; break;
+        case TabPlacement::Auto: {
+            const float width = p.has(PanelFlags::AutoSize)
+                ? std::max(p.content.x + 2.0f * padding_(p).x, p.min_size.x)
+                : p.size.x;
+            p.tabs_inline = header_width_(p, true) <= width + 0.5f;
+            break;
+        }
+    }
+    if (p.has(PanelFlags::NoTitleBar)) p.tabs_inline = false;
+
+    // Left to right, side by side: after the icon and title, or from the
+    // panel's edge in a strip (so the first label lines up with the content)
+    const float bw   = thickness_(style_.panel_border_width);
+    const float lead = lead_end_(p);
+    p.tab_left = tabs_in_title_(p) ? (lead > 0.0f ? lead + snap_(style_.title_padding * 0.5f) : bw)
+                                   : std::max(bw, padding_(p).x - style_.tab_padding);
+    float x = p.tab_left;
     for (std::size_t i = 0; i < tabs.size(); i++) {
-        p.tabs[i]  = std::string(visible_(tabs[i]));
-        x         += snap_(text_width_(p.tabs[i]) + 3.0f * style_.frame_padding.x);
+        x         += tab_width_(p, i);
         p.tab_x[i] = x;
-        x         += thickness_(2.0f);
     }
     p.tab = std::clamp(p.tab, 0, static_cast<int>(tabs.size()) - 1);
 
@@ -660,46 +727,44 @@ void Context::update_tabs_(Panel& p, std::span<const std::string_view> tabs) {
 }
 
 Rect Context::tab_rect_(const Panel& p, std::size_t i) const {
-    // Under the title bar, or in it (down to its bottom edge, so the picked
-    // one runs into the content)
-    const float top  = p.pos.y + (tabs_in_title_(p) ? 0.0f : title_height_(p)) + style_.title_padding;
+    // The full height of the header (or the strip), down to the line under it
+    const float bw   = p.has(PanelFlags::NoTitleBar) ? 0.0f : thickness_(style_.panel_border_width);
+    const float top  = p.pos.y + (tabs_in_title_(p) ? bw : title_height_(p));
     const float bot  = p.pos.y + header_height_(p);
-    const float left = i == 0 ? (tabs_in_title_(p) ? icon_rect_(p).max.x - p.pos.x + style_.title_padding : padding_(p).x)
-                              : p.tab_x[i - 1] + thickness_(2.0f);
+    const float left = i == 0 ? p.tab_left : p.tab_x[i - 1];
     return { { p.pos.x + left, top }, { p.pos.x + p.tab_x[i], bot } };
 }
 
 void Context::draw_tabs_(const Panel& p) {
     if (p.tabs.empty()) return;
-    const Rect  r   = p.rect();
-    const float bw  = thickness_(style_.border_width);
-    const float bot = r.min.y + header_height_(p);
+    const float line = thickness_(1.0f);
+    const float mark = thickness_(2.0f);
     const bool  in_title = tabs_in_title_(p);
 
-    // A line under the strip (the title bar has its own); the picked tab
-    // sits on it, open to the content
-    if (!in_title) draw_box_({ { r.min.x + bw, bot - bw }, { r.max.x - bw, bot } }, style_.separator);
     for (std::size_t i = 0; i < p.tabs.size(); i++) {
-        const Rect  tab    = tab_rect_(p, i);
-        const bool  picked = static_cast<int>(i) == p.tab;
-        const bool  hot    = static_cast<int>(i) == p.tab_hot;
+        const Rect tab    = tab_rect_(p, i);
+        const bool picked = static_cast<int>(i) == p.tab;
+        const bool hot    = static_cast<int>(i) == p.tab_hot;
 
-        // In the title bar the others are just their labels, like a
-        // browser's background tabs, until hovered
-        if (in_title && !picked) {
-            if (hot) draw_box_(tab.shrink({ 0.0f, thickness_(2.0f) }), style_.frame_bg_hovered, style_.frame_rounding);
-            draw_text_in_(tab, p.tabs[i], hot ? style_.text : style_.text_dim, 0.0f, true);
-            continue;
-        }
+        // A wash on hover (and on the picked tab in a strip), and the picked
+        // one underlined in the accent, over the line under the header
+        const Rect body = { tab.min, { tab.max.x, tab.max.y - line } };
+        if (picked && !in_title) draw_box_(body, style_.tab_picked);
+        else if (hot && !picked) draw_box_(body, style_.tab_hovered);
+        if (picked) draw_box_({ { tab.min.x, tab.max.y - mark }, tab.max }, style_.accent);
 
-        const glm::vec4& bg = picked ? style_.panel_bg : hot ? style_.frame_bg_hovered : style_.title_bg;
-        draw_box_(tab, bg, style_.frame_rounding);
-        draw_box_({ { tab.min.x, tab.center().y }, tab.max }, bg); // square at the bottom
-        if (picked) {
-            draw_box_({ tab.min, { tab.max.x, tab.min.y + thickness_(2.0f) } }, style_.accent, 0.0f);
-            draw_box_({ { tab.min.x, bot - bw }, { tab.max.x, bot } }, style_.panel_bg); // open below
+        // Icon, then label, centered in the tab as a group
+        const glm::vec4& color = (picked || hot) ? style_.text : style_.text_dim;
+        float x = tab.min.x + style_.tab_padding;
+        if (i < p.tab_icons.size() && p.tab_icons[i]) {
+            const float s = snap_(text_height_);
+            const float b = (picked || hot) ? 1.0f : 0.7f;
+            draw_image_(Rect::from_size({ x, snap_(tab.center().y - s * 0.5f) }, glm::vec2(s)),
+                        p.tab_icons[i], { b, b, b, (picked || hot) ? 1.0f : 0.75f });
+            x += s + style_.title_padding;
         }
-        draw_text_in_(tab, p.tabs[i], picked ? style_.heading : hot ? style_.text : style_.text_dim, 0.0f, true);
+        if (!p.tabs[i].empty())
+            draw_text_({ x, tab.min.y + snap_((body.height() - text_height_) * 0.5f) }, p.tabs[i], color);
     }
 }
 
@@ -720,7 +785,7 @@ bool Context::scrollbar_(const Panel& p, Scrollbar& out) const {
     if (view_h <= 0.0f || p.content.y <= view_h) return false;
 
     const Rect  r       = p.rect();
-    const float bw      = p.has(PanelFlags::NoBackground) ? 0.0f : thickness_(style_.border_width);
+    const float bw      = p.has(PanelFlags::NoBackground) ? 0.0f : thickness_(style_.panel_border_width);
     const float w       = snap_(style_.scrollbar_width);
     const float x       = r.max.x - bw - thickness_(2.0f) - w;
     const float top     = r.min.y + title_h + padding_(p).y;
@@ -734,11 +799,10 @@ bool Context::scrollbar_(const Panel& p, Scrollbar& out) const {
 }
 
 Rect Context::close_rect_(const Panel& panel) const {
-    const float h = title_height_(panel);
-    const float s = snap_(h * 0.7f);
-    const glm::vec2 min = { panel.pos.x + panel.size.x - (h + s) * 0.5f,
-                            panel.pos.y + (h - s) * 0.5f };
-    return Rect::from_size(min, glm::vec2(s));
+    // A square cell at the header's right end, inside the outline
+    const float bw = thickness_(style_.panel_border_width);
+    const float h  = title_height_(panel) - bw - thickness_(1.0f);
+    return Rect::from_size({ panel.pos.x + panel.size.x - bw - h, panel.pos.y + bw }, glm::vec2(h));
 }
 
 void Context::draw_chrome_(Panel& p) {
@@ -747,45 +811,69 @@ void Context::draw_chrome_(Panel& p) {
 
     const Rect  r       = p.rect();
     const float title_h = title_height_(p);
-    const float bw      = thickness_(style_.border_width);
+    const float bw      = thickness_(style_.panel_border_width);
+    const float line    = thickness_(1.0f);
     const float radius  = style_.panel_rounding;
+    const bool  front   = p.id == front_panel_;
 
     if (p.has(PanelFlags::NoBackground)) return;
 
-    // Hard drop shadow, two steps
-    const float s1 = thickness_(1.0f), s2 = thickness_(2.0f);
-    draw_box_(Rect{ r.min + glm::vec2(0.0f, s2), r.max + glm::vec2(s2, 2.0f * s2) },
-              { 0.0f, 0.0f, 0.0f, 0.18f }, radius + s2);
-    draw_box_(Rect{ r.min + glm::vec2(0.0f, s1), r.max + glm::vec2(s1, 2.0f * s1) },
-              { 0.0f, 0.0f, 0.0f, 0.25f }, radius + s1);
+    // Hard drop shadow, two steps (none unless the style gives it a color)
+    if (style_.panel_shadow.a > 0.0f) {
+        const float s1 = thickness_(1.0f), s2 = thickness_(2.0f);
+        glm::vec4 far = style_.panel_shadow;
+        far.a *= 0.7f;
+        draw_box_(Rect{ r.min + glm::vec2(0.0f, s2), r.max + glm::vec2(s2, 2.0f * s2) }, far, radius + s2);
+        draw_box_(Rect{ r.min + glm::vec2(0.0f, s1), r.max + glm::vec2(s1, 2.0f * s1) }, style_.panel_shadow, radius + s1);
+    }
 
-    // Background and border
-    draw_box_(r, style_.panel_bg, radius, style_.panel_border, bw);
+    // Background and outline: the front panel's in a gradient
+    if (front && style_.border_front.a + style_.border_front_end.a > 0.0f) {
+        draw_box_(r, style_.panel_bg, radius);
+        list_->push_back({ UIQuad{
+            .pos_box      = { r.min.x, r.min.y, r.max.x, r.max.y },
+            .color        = style_.border_front,
+            .border_color = style_.border_front_end,
+            .clip_box     = { NO_CLIP.min.x, NO_CLIP.min.y, NO_CLIP.max.x, NO_CLIP.max.y },
+            .params       = { radius, bw, float(UIQuadShape::GradientRing),
+                              glm::radians(style_.border_gradient_angle) },
+        } });
+    } else {
+        draw_box_(r, style_.panel_bg, radius, style_.panel_border, style_.panel_border_width);
+    }
 
-    // Title bar: rounded on top, square where it meets the content
+    // Header: a fill if the style has one, and a line under it (under the
+    // tab strip instead, when there is one)
     if (title_h > 0.0f) {
-        const glm::vec4& bg = p.id == front_panel_ ? style_.title_bg_front : style_.title_bg;
+        const glm::vec4& bg = front ? style_.title_bg_front : style_.title_bg;
         const Rect bar = Rect{ r.min, { r.max.x, r.min.y + title_h } }.shrink(glm::vec2(bw));
-        draw_box_(bar, bg, radius - bw);
-        draw_box_({ { bar.min.x, bar.center().y }, bar.max }, bg);
-        draw_box_({ { r.min.x, bar.max.y }, { r.max.x, bar.max.y + bw } }, style_.panel_border);
+        if (bg.a > 0.0f) {
+            draw_box_(bar, bg, std::max(0.0f, radius - bw));
+            if (radius > bw) draw_box_({ { bar.min.x, bar.center().y }, bar.max }, bg);
+        }
 
-        if (tabs_in_title_(p)) {
-            draw_image_(icon_rect_(p), p.icon, glm::vec4(1.0f));
-        } else {
+        float x = r.min.x + padding_(p).x;
+        if (p.icon) {
+            const Rect ir = icon_rect_(p);
+            draw_image_(ir, p.icon, glm::vec4(1.0f));
+            x = ir.max.x + style_.title_padding;
+        }
+        if (shows_title_(p)) {
             clip_ = bar;
-            draw_text_({ r.min.x + style_.panel_padding.x, r.min.y + style_.title_padding },
-                       p.title, style_.heading);
+            draw_text_({ x, r.min.y + snap_((title_h - text_height_) * 0.5f) }, p.title, style_.heading);
             clip_ = NO_CLIP;
         }
 
         if (p.closable) {
             const Rect cr = close_rect_(p);
             if (p.close_hot) draw_box_(cr, style_.close_hovered, style_.frame_rounding);
-            draw_shape_(cr.shrink(glm::vec2(snap_(cr.width() * 0.28f))),
-                        UIQuadShape::Cross, style_.text, 2.0f);
+            draw_shape_(cr.shrink(glm::vec2(snap_(cr.width() * 0.34f))), UIQuadShape::Cross,
+                        p.close_hot ? style_.close_text_hovered : style_.text_dim, 1.5f);
         }
     }
+
+    const float hh = header_height_(p);
+    if (hh > 0.0f) draw_box_({ { r.min.x + bw, r.min.y + hh - line }, { r.max.x - bw, r.min.y + hh } }, style_.separator);
 
     draw_tabs_(p);
 
@@ -794,14 +882,14 @@ void Context::draw_chrome_(Panel& p) {
     Scrollbar bar;
     if (scrollbar_(p, bar)) {
         glm::vec4 color = style_.scrollbar;
-        if (scroll_drag_ == p.id) color = glm::min(color * 1.35f, glm::vec4(1.0f));
-        draw_box_(bar.thumb, color, style_.scrollbar_width * 0.5f);
+        if (scroll_drag_ == p.id) color = style_.accent;
+        draw_box_(bar.thumb, color, std::min(style_.frame_rounding, style_.scrollbar_width * 0.5f));
     }
 
     // Resize grip in the bottom-right corner
     if (p.has(PanelFlags::Resizable) && !p.has(PanelFlags::AutoSize)) {
-        const float g = 10.0f;
-        draw_shape_(Rect{ r.max - glm::vec2(g + 3.0f), r.max - glm::vec2(3.0f) },
+        const float g = 8.0f;
+        draw_shape_(Rect{ r.max - glm::vec2(g + bw + 2.0f), r.max - glm::vec2(bw + 2.0f) },
                     UIQuadShape::Corner, style_.separator);
     }
 }
@@ -973,7 +1061,7 @@ void Context::draw_tooltip_(std::string_view text, const Rect& anchor) {
     }
     const Rect box = Rect::from_size(snap_(pos), size);
 
-    draw_box_(box, style_.tooltip_bg, style_.frame_rounding, style_.panel_border, style_.border_width);
+    draw_box_(box, style_.tooltip_bg, style_.frame_rounding, style_.frame_border, style_.border_width);
     glm::vec2 at = box.min + pad;
     for (std::size_t from = 0; from <= text.size(); at.y += line_h) {
         const std::size_t end = std::min(text.find('\n', from), text.size());
