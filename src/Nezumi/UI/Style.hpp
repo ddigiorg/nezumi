@@ -38,6 +38,7 @@ struct Style {
     float     tab_padding        = 10.0f;            // left and right of a tab's icon and label
     float     panel_rounding     = 0.0f;             // square, like Omarchy; try 4-8 for softer
     float     frame_rounding     = 0.0f;             // buttons, fields, slots, tooltips
+    float     slot_rounding      = 4.0f;             // slot grids' slots (and their icons' mask)
     float     panel_border_width = 2.0f;             // the panel's outline
     float     border_width       = 1.0f;             // buttons, fields, slots, tooltips
     float     control_width      = 180.0f; // sliders, fields, dropdowns in AutoSize panels
@@ -47,6 +48,11 @@ struct Style {
     float     scroll_speed       = 40.0f;  // pixels per wheel notch
     float     tooltip_delay      = 0.4f;   // seconds of hover before a tooltip shows
     float     drag_threshold     = 4.0f;   // points the mouse moves before a press drags
+
+    // An outline around all UI text, in points (text_outline sets its
+    // color); 0 or a clear color: none. Keeps labels readable with no panel
+    // behind them, straight over the game.
+    float     text_outline_width = 0.0f;
 
     // Direction of the front panel's gradient outline, in degrees:
     // border_front at the start, border_front_end at the end. 45: from the
@@ -63,6 +69,7 @@ struct Style {
     glm::vec4 text               = { 0.75f, 0.79f, 0.96f, 1.00f }; // #C0CAF5
     glm::vec4 text_dim           = { 0.45f, 0.48f, 0.64f, 1.00f }; // #737AA2
     glm::vec4 heading            = { 0.73f, 0.60f, 0.97f, 1.00f }; // #BB9AF7
+    glm::vec4 text_outline       = { 0.04f, 0.04f, 0.07f, 1.00f }; // see text_outline_width
 
     // Panels: see-through, so the game shows behind them
     glm::vec4 panel_bg           = { 0.10f, 0.11f, 0.15f, 0.86f }; // #1A1B26
@@ -72,6 +79,7 @@ struct Style {
     glm::vec4 panel_shadow       = { 0.00f, 0.00f, 0.00f, 0.00f }; // none
     glm::vec4 title_bg           = { 0.00f, 0.00f, 0.00f, 0.00f }; // header fill: none, a line under it
     glm::vec4 title_bg_front     = { 0.00f, 0.00f, 0.00f, 0.00f };
+    glm::vec4 header_line        = { 0.23f, 0.26f, 0.38f, 1.00f }; // under the header (or tab strip)
     glm::vec4 tab_hovered        = { 0.75f, 0.79f, 0.96f, 0.06f }; // a faint wash of text color
     glm::vec4 tab_picked         = { 0.49f, 0.81f, 1.00f, 0.08f }; // in a tab strip; underlined in accent
 
@@ -82,6 +90,11 @@ struct Style {
     glm::vec4 frame_bg_active    = { 0.23f, 0.26f, 0.38f, 0.70f };
     glm::vec4 frame_border       = { 0.23f, 0.26f, 0.38f, 1.00f }; // #3B4261
     glm::vec4 frame_border_hovered = { 0.34f, 0.37f, 0.54f, 1.00f }; // #565F89
+
+    // Slot grids' slots (UI::Slot::tint overrides the fill per slot)
+    glm::vec4 slot_bg            = { 0.09f, 0.09f, 0.12f, 0.55f };
+    glm::vec4 slot_border        = { 0.23f, 0.26f, 0.38f, 1.00f };
+    glm::vec4 slot_border_hovered = { 0.49f, 0.81f, 1.00f, 1.00f };
 
     // Buttons: an outline over a faint fill that lights up in the accent
     glm::vec4 button             = { 0.09f, 0.09f, 0.12f, 0.35f };
@@ -99,6 +112,7 @@ struct Style {
     glm::vec4 scrollbar          = { 0.34f, 0.37f, 0.54f, 0.90f }; // #565F89
     glm::vec4 selection          = { 0.73f, 0.60f, 0.97f, 0.30f }; // #BB9AF7, faint
     glm::vec4 tooltip_bg         = { 0.09f, 0.09f, 0.12f, 0.96f }; // #16161E
+    glm::vec4 tooltip_border     = { 0.23f, 0.26f, 0.38f, 1.00f }; // #3B4261
 };
 
 } // namespace Nezumi::UI

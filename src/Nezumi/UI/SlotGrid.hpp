@@ -41,23 +41,35 @@ struct Slot {
     bool             flash    = false; // drawn pressed, e.g. while its hotkey is held
     bool             disabled = false; // icon dimmed; still draggable
     std::uint64_t    value    = 0;     // DragPayload::value when dragged from here
+
+    // The slot's own fill, e.g. red for a trash slot or gold for a
+    // favorite (alpha 0: Style::slot_bg)
+    glm::vec4        tint     = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+    // Shown while the slot is empty, e.g. a helmet silhouette in an armor
+    // slot (none: SlotStyle::placeholder, if any), tinted by
+    // SlotStyle::placeholder_tint
+    Image            placeholder = {};
 };
 
-// How the slots look. Defaults draw plain boxes in the UI's colors, so a grid
-// works before the game has any art.
+// How the slots look. Defaults draw rounded boxes in the UI's slot colors
+// (Style::slot_bg, slot_border, slot_rounding), so a grid works before the
+// game has any art.
 struct SlotStyle {
     glm::vec2 slot_size   = { 40.0f, 40.0f };
     glm::vec2 spacing     = {  2.0f,  2.0f };
 
     // Under the icon, and over it (e.g. a bevelled rim that overlaps the
-    // icon's edge). Either can be left empty.
+    // icon's edge). Either can be left empty; with no frame, the slot is a
+    // box in the Style's slot colors, its border lit while hovered.
     NineSlice frame       = {};
     NineSlice frame_over  = {};
 
     // The icon sits inside the slot by `icon_inset` points on each side,
-    // its corners rounded by `icon_radius` (the slot's mask)
+    // its corners rounded by `icon_radius` (the slot's mask; < 0: the
+    // Style's slot_rounding less the inset)
     float     icon_inset  = 3.0f;
-    float     icon_radius = 3.0f;
+    float     icon_radius = -1.0f;
 
     // Drawn where an empty slot's icon would be (e.g. a greyed emblem, for
     // a codex's undiscovered items); none: the frame alone
