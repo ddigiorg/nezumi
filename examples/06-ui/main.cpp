@@ -7,10 +7,17 @@
 // - "Widgets" is movable and resizable, and scrolls when its content doesn't
 //   fit (mouse wheel over it).
 // - "Settings" sizes itself to its content (AutoSize) and can only be moved.
-//   Its tabs (Video, Audio, Game) sit in the title bar beside an icon,
-//   browser-style (PanelConfig::tabs and icon); drag it by the icon.
+//   Its tabs (Video, Audio, Game) sit in the header beside an icon,
+//   browser-style (PanelConfig::tabs and icon, with HideTitle and
+//   TabPlacement::Header); drag it by the header's empty part.
+// - "Bag" has an icon, a title and tabs with icons (PanelConfig::tab_icons).
+//   They don't all fit in its header, so they get a strip under it
+//   (TabPlacement::Auto).
 // - "Main Menu" has no title bar and stays centered on the screen, even when
 //   the window is resized (PinPosition with a pivot).
+// - The panel in front has a cyan to magenta outline; click another panel
+//   to bring it to the front. Panels are see-through (Style::panel_bg's
+//   alpha), so the squares show behind them.
 // - "Bag" and "Hotbar" are slot grids (UI::Context::slot_grid) of icons cut
 //   from the example sprite sheet. Drag icons between slots and between the two
 //   grids; drop one outside both to throw it away, right-click a bag slot
@@ -250,8 +257,9 @@ private:
         const UI::PanelConfig config = {
             .position = { ui.screen_size().x - 24.0f, 24.0f },
             .pivot    = { 1.0f, 0.0f }, // top-right corner at position
-            .flags    = UI::PanelFlags::Movable | UI::PanelFlags::AutoSize,
+            .flags    = UI::PanelFlags::Movable | UI::PanelFlags::AutoSize | UI::PanelFlags::HideTitle,
             .tabs     = SETTINGS_TABS,
+            .tab_placement = UI::TabPlacement::Header, // always beside the icon, even if that widens the panel
             .icon     = icons_[SETTINGS_ICON],
         };
         if (!ui.begin_panel("Settings", &show_settings_, config)) return;
@@ -332,23 +340,32 @@ private:
             if (int* from = source_slot(p)) std::swap(target, *from);
         };
 
-        // Bag: 4 x 5, movable
+        // Bag: 4 x 5, movable, with tabs (only the first has anything in it)
+        static constexpr std::string_view BAG_TABS[] = { "Items", "Gear", "Quest" };
+        const UI::Image bag_tab_icons[] = { icons_[0], icons_[7], icons_[13] };
         const UI::PanelConfig bag_config = {
-            .position = { ui.screen_size().x - 24.0f, ui.screen_size().y - 24.0f },
-            .pivot    = { 1.0f, 1.0f },
-            .flags    = UI::PanelFlags::Movable | UI::PanelFlags::AutoSize,
+            .position  = { ui.screen_size().x - 24.0f, ui.screen_size().y - 24.0f },
+            .pivot     = { 1.0f, 1.0f },
+            .flags     = UI::PanelFlags::Movable | UI::PanelFlags::AutoSize,
+            .tabs      = BAG_TABS,
+            .tab_icons = bag_tab_icons,
+            .icon      = icons_[2],
         };
         if (ui.begin_panel("Bag", bag_config)) {
-            std::array<UI::Slot, 20> slots;
-            slots_of(bag_, slots);
-            bag_id_ = ui.get_id("bag");
-            UI::SlotStyle style;
-            style.placeholder = icons_[0];
-            style.placeholder_tint = { 0.4f, 0.45f, 0.55f, 0.45f };
-            const UI::SlotGridResult r = ui.slot_grid("bag", slots, 5, style, DRAG_ICON);
-            if (r.dropped >= 0)       drop_into(bag_[std::size_t(r.dropped)], r.payload);
-            if (r.right_clicked >= 0) bag_[std::size_t(r.right_clicked)] = EMPTY;
-            tooltip_for(bag_, r.hovered);
+            if (ui.panel_tab() != 0) {
+                ui.text("Nothing here yet.", ui.style().text_dim);
+            } else {
+                std::array<UI::Slot, 20> slots;
+                slots_of(bag_, slots);
+                bag_id_ = ui.get_id("bag");
+                UI::SlotStyle style;
+                style.placeholder = icons_[0];
+                style.placeholder_tint = { 0.4f, 0.45f, 0.55f, 0.45f };
+                const UI::SlotGridResult r = ui.slot_grid("bag", slots, 5, style, DRAG_ICON);
+                if (r.dropped >= 0)       drop_into(bag_[std::size_t(r.dropped)], r.payload);
+                if (r.right_clicked >= 0) bag_[std::size_t(r.right_clicked)] = EMPTY;
+                tooltip_for(bag_, r.hovered);
+            }
             ui.end_panel();
         }
 
@@ -464,7 +481,7 @@ private:
     bool        show_squares_ = true;
     bool        show_markers_ = true;
     bool        animate_      = false;
-    int         color_        = 3;
+    int         color_        = 2;
     float       square_size_  = 0.8f;
     int         grid_radius_  = 6;
     std::string name_         = "Nezumi";

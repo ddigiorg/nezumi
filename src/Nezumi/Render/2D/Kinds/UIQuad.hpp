@@ -37,6 +37,7 @@ enum class UIQuadShape : std::uint8_t {
     Circle        = 6, // filled circle in the box (toggle knob, radio)
     Corner        = 7, // bottom-right half of the box (resize grip)
     Image         = 8, // the material's texture at tex_box, times color; corners rounded by radius
+    GradientRing  = 9, // a Box's border only, color to border_color along an angle (params.w, radians)
 };
 
 struct UIQuad {
@@ -47,10 +48,12 @@ struct UIQuad {
     glm::vec4 clip_box     = { -1e9f, -1e9f, 1e9f, 1e9f }; // view; nothing outside is drawn
 
     // x: corner radius (Box, Image)
-    // y: border width (Box) or stroke width (Cross, Check), in view units
+    // y: border width (Box, GradientRing) or stroke width (Cross, Check), in
+    //    view units
     // z: UIQuadShape
-    // w: glyph weight, in SDF value units (Glyph; see TextGlyphSDF), or the
-    //    material's array layer (Image)
+    // w: glyph weight, in SDF value units (Glyph; see TextGlyphSDF), the
+    //    material's array layer (Image), or the gradient's angle in radians
+    //    (GradientRing)
     glm::vec4 params       = { 0.0f, 0.0f, 0.0f, 0.0f };
 };
 

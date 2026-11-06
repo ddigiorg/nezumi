@@ -434,9 +434,13 @@ private:
         bool        close_hot  = false; // close button under the cursor
         std::vector<std::string> tabs = {}; // PanelConfig::tabs, as of this frame
         std::vector<float>       tab_x = {}; // each tab's right edge, from the panel's left
+        std::vector<Image>       tab_icons = {}; // PanelConfig::tab_icons, one per tab
+        float       tab_left   = 0.0f;  // the first tab's left edge, from the panel's left
         int         tab        = 0;     // picked
         int         tab_hot    = -1;    // under the cursor
-        Image       icon       = {};    // PanelConfig::icon: tabs in the title bar
+        TabPlacement tab_placement = TabPlacement::Auto;
+        bool        tabs_inline = false; // in the header (this frame's layout), else in a strip
+        Image       icon       = {};    // PanelConfig::icon, at the header's left end
         std::uint64_t drawn    = 0;    // frame it was last begun
 
         DrawList    chrome     = {};   // background, title bar (drawn first)
@@ -489,11 +493,15 @@ private:
     void   draw_chrome_(Panel& panel);
     float  title_height_(const Panel& panel) const;
     float  tabs_height_ (const Panel& panel) const; // the tab strip under the title bar, or 0
-    bool   tabs_in_title_(const Panel& panel) const { return panel.icon.is_valid() && !panel.has(PanelFlags::NoTitleBar); }
+    bool   tabs_in_title_(const Panel& panel) const { return panel.tabs_inline && !panel.has(PanelFlags::NoTitleBar); }
+    bool   shows_title_ (const Panel& panel) const { return !panel.has(PanelFlags::HideTitle) && !panel.title.empty(); }
     Rect   icon_rect_   (const Panel& panel) const; // PanelConfig::icon, in the title bar
+    float  lead_end_    (const Panel& panel) const; // right end of the icon and title, from the panel's left
+    float  tab_width_   (const Panel& panel, std::size_t i) const;
+    float  header_width_(const Panel& panel, bool tabs_inline) const; // narrowest the header fits in
     Rect   tab_rect_    (const Panel& panel, std::size_t i) const;
     float  header_height_(const Panel& panel) const { return title_height_(panel) + tabs_height_(panel); }
-    void   update_tabs_ (Panel& panel, std::span<const std::string_view> tabs);
+    void   update_tabs_ (Panel& panel, std::span<const std::string_view> tabs, std::span<const Image> icons);
     void   draw_tabs_   (const Panel& panel);
     Rect   close_rect_(const Panel& panel) const;
 
