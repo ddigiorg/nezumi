@@ -210,6 +210,78 @@ bool Context::slider_(std::string_view label, float& value, float min, float max
 }
 
 // -----------------------------------------------------------------------------
+// Range Slider
+// -----------------------------------------------------------------------------
+
+bool Context::range_slider(std::string_view label, int& lo, int& hi, int min, int max, float power) {
+    if (!layout_.panel) return false;
+
+    const ID               id      = id_(label);
+    const std::string_view visible = visible_(label);
+
+    const float w     = control_width_();
+    const Rect  r     = place_({ w + label_width_(visible), frame_height_() });
+    const Rect  track = { r.min, { r.min.x + w, r.max.y } };
+
+    bool hovered = false, held = false;
+    const bool pressed = mouse_pressed_ && hovered_(id, track);
+    behavior_(id, track, &hovered, &held);
+
+    // Values <-> 0..1 along the track, curved by `power`
+    const float range = static_cast<float>(max - min);
+    power = std::max(power, 0.01f);
+    const auto to_t = [&](int v) {
+        return range > 0.0f ? std::pow(std::clamp(static_cast<float>(v - min) / range, 0.0f, 1.0f), 1.0f / power) : 0.0f;
+    };
+    const auto from_t = [&](float t) {
+        return min + static_cast<int>(std::round(range * std::pow(std::clamp(t, 0.0f, 1.0f), power)));
+    };
+
+    const float grab_w = std::max(8.0f, snap_(frame_height_() * 0.4f));
+    const float travel = std::max(1.0f, w - grab_w);
+    const float mouse_t = (mouse_.x - track.min.x - grab_w * 0.5f) / travel;
+
+    // The press picks the nearer grab (the upper one when they meet and
+    // the press is to their right), which then follows the cursor
+    if (pressed) {
+        const float tl = to_t(lo), th = to_t(hi);
+        range_grab_hi_ = std::abs(mouse_t - th) < std::abs(mouse_t - tl) ||
+                         (tl == th && mouse_t > th);
+    }
+    bool changed = false;
+    if (active_id_ == id || held) {
+        const int v = from_t(mouse_t);
+        if (range_grab_hi_) {
+            const int nv = std::clamp(v, lo, max);
+            if (nv != hi) { hi = nv; changed = true; }
+        } else {
+            const int nv = std::clamp(v, min, hi);
+            if (nv != lo) { lo = nv; changed = true; }
+        }
+    }
+
+    const glm::vec4& bg = held ? style_.frame_bg_active : hovered ? style_.frame_bg_hovered : style_.frame_bg;
+    draw_box_(track, bg, style_.frame_rounding, style_.frame_border, style_.border_width);
+
+    // The span between the grabs, then the grabs
+    const float xl = track.min.x + snap_(to_t(lo) * travel);
+    const float xh = track.min.x + snap_(to_t(hi) * travel);
+    glm::vec4 span = style_.accent_dim;
+    span.a *= 0.55f;
+    draw_box_({ { xl + grab_w * 0.5f, track.min.y + 4.0f }, { xh + grab_w * 0.5f, track.max.y - 4.0f } }, span, 0.0f);
+    const bool active = active_id_ == id || held;
+    for (int k = 0; k < 2; k++) {
+        const bool  is_hi = k == 1;
+        const Rect  grab  = Rect::from_size({ is_hi ? xh : xl, track.min.y + 2.0f }, { grab_w, track.height() - 4.0f });
+        const bool  lit   = (active && range_grab_hi_ == is_hi) || (!active && hovered);
+        draw_box_(grab, lit ? style_.accent : style_.accent_dim, style_.frame_rounding);
+    }
+
+    draw_label_(r, track.max.x, visible);
+    return changed;
+}
+
+// -----------------------------------------------------------------------------
 // Text Field
 // -----------------------------------------------------------------------------
 

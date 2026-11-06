@@ -124,6 +124,7 @@
 #include <span>        // span
 #include <string>      // string
 #include <string_view> // string_view
+#include <utility>     // pair
 #include <vector>      // vector
 
 namespace Nezumi {
@@ -190,6 +191,14 @@ public:
     }
     void end_panel();
 
+    // The picked tab of the panel being built (PanelConfig::tabs), 0 if it
+    // has none
+    int panel_tab() const;
+
+    // Picks tab `tab` of panel `title`, e.g. to open it on a given tab;
+    // it applies when the panel is next begun (created, if need be)
+    void set_panel_tab(std::string_view title, int tab);
+
     // -------------------------------------------------------------------------
     // Layout
     // -------------------------------------------------------------------------
@@ -207,6 +216,11 @@ public:
     // (inside the padding), instead of below the previous one. The widgets
     // after it continue from there.
     void set_next_pos(glm::vec2 offset);
+
+    // Width of the next slider, text field or dropdown's box (its label
+    // goes after it), instead of the style's control width. For rows of
+    // controls side by side.
+    void set_next_width(float width) { layout_.next_width = width; }
 
     // The current panel's content area (inside the padding), UI units
     Rect content_rect() const { return layout_.content; }
@@ -254,6 +268,13 @@ public:
     bool slider(std::string_view label, float& value, float min, float max,
                 const char* format = "%.2f");
     bool slider(std::string_view label, int& value, int min, int max);
+
+    // Two grabs on one track for a range: `lo` and `hi`, min <= lo <= hi
+    // <= max. Pressing the track takes the nearer grab. `power` > 1 gives
+    // the low end more of the track (3: a 0..65535 range moves by ones near
+    // 0). Nothing is printed on it; show the numbers beside it.
+    bool range_slider(std::string_view label, int& lo, int& hi, int min, int max,
+                      float power = 1.0f);
 
     // Single line. Focus by clicking; Enter, Escape or a click elsewhere
     // ends editing. Returns true on every edit. Printable ASCII only.
@@ -411,6 +432,10 @@ private:
         bool        place      = false; // apply anchor and pivot in end_panel
         bool        closable   = false;
         bool        close_hot  = false; // close button under the cursor
+        std::vector<std::string> tabs = {}; // PanelConfig::tabs, as of this frame
+        std::vector<float>       tab_x = {}; // each tab's right edge, from the panel's left
+        int         tab        = 0;     // picked
+        int         tab_hot    = -1;    // under the cursor
         std::uint64_t drawn    = 0;    // frame it was last begun
 
         DrawList    chrome     = {};   // background, title bar (drawn first)
@@ -433,6 +458,7 @@ private:
         float     max_y      = 0.0f;
         bool      same_line  = false;
         float     same_space = 0.0f;
+        float     next_width = 0.0f; // set_next_width, for the next control
     };
 
     // Resize edges, as a bit mask
@@ -461,6 +487,10 @@ private:
     void   clamp_to_screen_(Panel& panel) const;
     void   draw_chrome_(Panel& panel);
     float  title_height_(const Panel& panel) const;
+    float  tabs_height_ (const Panel& panel) const; // the tab strip, or 0
+    float  header_height_(const Panel& panel) const { return title_height_(panel) + tabs_height_(panel); }
+    void   update_tabs_ (Panel& panel, std::span<const std::string_view> tabs);
+    void   draw_tabs_   (const Panel& panel);
     Rect   close_rect_(const Panel& panel) const;
 
     // The scrollbar of a panel whose content overflows: its thumb, the
@@ -644,6 +674,11 @@ private:
     std::vector<TextInput> text_in_   = {};
 
     CursorStyle ui_cursor_   = CursorStyle::Arrow;
+
+    bool range_grab_hi_ = false; // range_slider: the grab being dragged is `hi`
+
+    // set_panel_tab() calls waiting for their panel's next begin_panel
+    std::vector<std::pair<ID, int>> pending_tabs_ = {};
     CursorStyle game_cursor_ = CursorStyle::Arrow;
 
     glm::vec2     screen_size_ = { 0.0f, 0.0f };

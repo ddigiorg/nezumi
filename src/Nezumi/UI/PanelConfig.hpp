@@ -20,6 +20,15 @@
 //       .flags    = UI::PanelFlags::NoTitleBar | UI::PanelFlags::AutoSize |
 //                   UI::PanelFlags::PinPosition,
 //   };
+//
+//   // Tabs along the top, under the title (they don't scroll with the
+//   // content); draw the one Context::panel_tab() says is picked
+//   static constexpr std::string_view TABS[] = { "Inventory", "Crafting" };
+//   if (ui.begin_panel("Settlement", &open, { .tabs = TABS })) {
+//       if (ui.panel_tab() == 0) ...inventory...
+//       else                     ...crafting...
+//       ui.end_panel();
+//   }
 // =============================================================================
 
 #pragma once
@@ -27,6 +36,8 @@
 #include "Nezumi/UI/Rect.hpp"
 #include <cstdint>     // uint8_t
 #include <glm/glm.hpp> // vec2
+#include <span>        // span
+#include <string_view> // string_view
 
 namespace Nezumi::UI {
 
@@ -70,6 +81,12 @@ struct PanelConfig {
     // stick out (an action bar's flanking statues) claim only its bar, so
     // clicks on the see-through parts reach the game.
     Rect hit_box = {};
+
+    // Tabs in a strip under the title bar, left to right; empty: none.
+    // Clicking one picks it (the content scrolls back to the top), and
+    // Context::panel_tab() says which is picked. Must stay valid for the
+    // begin_panel call.
+    std::span<const std::string_view> tabs = {};
 };
 
 } // namespace Nezumi::UI
