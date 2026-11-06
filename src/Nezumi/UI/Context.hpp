@@ -436,6 +436,7 @@ private:
         std::vector<float>       tab_x = {}; // each tab's right edge, from the panel's left
         int         tab        = 0;     // picked
         int         tab_hot    = -1;    // under the cursor
+        Image       icon       = {};    // PanelConfig::icon: tabs in the title bar
         std::uint64_t drawn    = 0;    // frame it was last begun
 
         DrawList    chrome     = {};   // background, title bar (drawn first)
@@ -487,7 +488,10 @@ private:
     void   clamp_to_screen_(Panel& panel) const;
     void   draw_chrome_(Panel& panel);
     float  title_height_(const Panel& panel) const;
-    float  tabs_height_ (const Panel& panel) const; // the tab strip, or 0
+    float  tabs_height_ (const Panel& panel) const; // the tab strip under the title bar, or 0
+    bool   tabs_in_title_(const Panel& panel) const { return panel.icon.is_valid() && !panel.has(PanelFlags::NoTitleBar); }
+    Rect   icon_rect_   (const Panel& panel) const; // PanelConfig::icon, in the title bar
+    Rect   tab_rect_    (const Panel& panel, std::size_t i) const;
     float  header_height_(const Panel& panel) const { return title_height_(panel) + tabs_height_(panel); }
     void   update_tabs_ (Panel& panel, std::span<const std::string_view> tabs);
     void   draw_tabs_   (const Panel& panel);

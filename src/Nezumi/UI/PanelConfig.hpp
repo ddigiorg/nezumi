@@ -29,10 +29,16 @@
 //       else                     ...crafting...
 //       ui.end_panel();
 //   }
+//
+//   // Browser-style: an icon in place of the title and the tabs beside it,
+//   // all in the title bar; drag the panel by the icon (or the bar's empty
+//   // part), close it with the X
+//   if (ui.begin_panel("Settlement", &open, { .tabs = TABS, .icon = banner })) ...
 // =============================================================================
 
 #pragma once
 #include "Nezumi/Core/EnumClassFlags.hpp"
+#include "Nezumi/UI/Image.hpp"
 #include "Nezumi/UI/Rect.hpp"
 #include <cstdint>     // uint8_t
 #include <glm/glm.hpp> // vec2
@@ -87,6 +93,12 @@ struct PanelConfig {
     // Context::panel_tab() says which is picked. Must stay valid for the
     // begin_panel call.
     std::span<const std::string_view> tabs = {};
+
+    // Shown in the title bar's left end in place of the title, which then
+    // only names the panel (its id). The tabs move up into the title bar
+    // beside it, like a browser's, and the panel is dragged by the icon or
+    // the bar's empty part, not by the tabs. None: the title as text.
+    Image icon = {};
 };
 
 } // namespace Nezumi::UI
