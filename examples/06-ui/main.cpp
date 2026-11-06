@@ -7,6 +7,7 @@
 // - "Widgets" is movable and resizable, and scrolls when its content doesn't
 //   fit (mouse wheel over it).
 // - "Settings" sizes itself to its content (AutoSize) and can only be moved.
+//   Its tabs (Video, Audio, Game) sit under the title (PanelConfig::tabs).
 // - "Main Menu" has no title bar and stays centered on the screen, even when
 //   the window is resized (PinPosition with a pivot).
 // - "Bag" and "Hotbar" are slot grids (UI::Context::slot_grid) of icons cut
@@ -28,11 +29,12 @@
 #include "Nezumi/Control/CameraController.hpp"
 #include "Nezumi/Core/Events/OnGameExited.hpp"
 #include "Nezumi/Engine.hpp"
+#include <algorithm>   // clamp, min
 #include <array>       // array
 #include <cmath>       // sin
 #include <cstdint>     // uint32_t, uint64_t
 #include <cstdio>      // snprintf
-#include <cstdlib>     // EXIT_FAILURE, EXIT_SUCCESS
+#include <cstdlib>     // atoi, EXIT_FAILURE, EXIT_SUCCESS
 #include <exception>   // exception
 #include <glm/glm.hpp> // vec2, vec4
 #include <iostream>    // cerr
@@ -209,6 +211,21 @@ private:
         ui.slider("Square size", square_size_, 0.2f, 1.0f);
         ui.slider("Grid radius", grid_radius_, 1, 12);
 
+        // A range: two grabs, and its ends typed in narrow fields beside it
+        // (set_next_width). power 3 gives the low end most of the track.
+        ui.set_next_width(130.0f);
+        if (ui.range_slider("##range", range_lo_, range_hi_, 0, 65535, 3.0f)) {
+            range_lo_text_ = std::to_string(range_lo_);
+            range_hi_text_ = std::to_string(range_hi_);
+        }
+        ui.same_line();
+        ui.set_next_width(56.0f);
+        if (ui.text_field("##lo", range_lo_text_, 5)) range_lo_ = std::min(std::atoi(range_lo_text_.c_str()), range_hi_);
+        ui.same_line();
+        ui.set_next_width(56.0f);
+        if (ui.text_field("Range##hi", range_hi_text_, 5))
+            range_hi_ = std::clamp(std::atoi(range_hi_text_.c_str()), range_lo_, 65535);
+
         ui.separator();
         ui.heading("Text");
         ui.text_field("Name", name_, 24);
@@ -233,21 +250,23 @@ private:
             .position = { ui.screen_size().x - 24.0f, 24.0f },
             .pivot    = { 1.0f, 0.0f }, // top-right corner at position
             .flags    = UI::PanelFlags::Movable | UI::PanelFlags::AutoSize,
+            .tabs     = SETTINGS_TABS,
         };
         if (!ui.begin_panel("Settings", &show_settings_, config)) return;
 
-        ui.heading("Video");
-        ui.toggle("Fullscreen", fullscreen_);
-        ui.toggle("VSync", vsync_);
-
-        ui.spacing();
-        ui.heading("Audio");
-        ui.slider("Master", volume_, 0, 100);
-        ui.slider("Music", music_, 0, 100);
-
-        ui.spacing();
-        ui.heading("Game");
-        ui.dropdown("Difficulty", difficulty_, DIFFICULTIES);
+        switch (ui.panel_tab()) {
+            case 0:
+                ui.toggle("Fullscreen", fullscreen_);
+                ui.toggle("VSync", vsync_);
+                break;
+            case 1:
+                ui.slider("Master", volume_, 0, 100);
+                ui.slider("Music", music_, 0, 100);
+                break;
+            default:
+                ui.dropdown("Difficulty", difficulty_, DIFFICULTIES);
+                break;
+        }
 
         ui.spacing();
         if (ui.button("Apply"))  show_settings_ = false;
@@ -453,6 +472,13 @@ private:
     int  volume_     = 80;
     int  music_      = 60;
     int  difficulty_ = 1;
+    static constexpr std::string_view SETTINGS_TABS[] = { "Video", "Audio", "Game" };
+
+    // The range slider, and its ends as typed
+    int         range_lo_      = 20;
+    int         range_hi_      = 500;
+    std::string range_lo_text_ = "20";
+    std::string range_hi_text_ = "500";
 
     // Slot grids: an icon index per slot, or EMPTY
     std::array<UI::Image, ICON_COUNT> icons_     = {};

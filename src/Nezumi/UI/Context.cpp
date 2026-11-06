@@ -225,6 +225,15 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
         bring_to_front_(*panel);
     }
 
+    // A tab picked from outside (set_panel_tab)
+    for (auto it = pending_tabs_.begin(); it != pending_tabs_.end(); ++it) {
+        if (it->first != id) continue;
+        if (panel->tab != it->second) panel->scroll = 0.0f;
+        panel->tab = it->second;
+        pending_tabs_.erase(it);
+        break;
+    }
+
     Panel& p   = *panel;
     p.flags    = config.flags;
     p.min_size = config.min_size;
@@ -265,10 +274,11 @@ bool Context::begin_panel(std::string_view title, bool* open, const PanelConfig&
     }
 
     clamp_to_screen_(p);
+    update_tabs_(p, config.tabs);
 
     // Layout: content inside the padding and below the title, scrolled.
     // AutoSize panels grow to fit, so they never clip or scroll.
-    const float title_h = title_height_(p);
+    const float title_h = header_height_(p);
     const float border  = p.has(PanelFlags::NoBackground) ? 0.0f : thickness_(style_.border_width);
     const Rect  inner   = Rect{ { p.pos.x, p.pos.y + title_h }, p.pos + p.size }
                               .shrink(glm::vec2(border));
@@ -366,8 +376,9 @@ void Context::end_panel() {
             : text_width_(p.title) + 2.0f * padding_(p).x +
               (p.closable ? title_height_(p) : 0.0f);
 
-        p.size = p.content + 2.0f * padding_(p) + glm::vec2(0.0f, title_height_(p));
+        p.size = p.content + 2.0f * padding_(p) + glm::vec2(0.0f, header_height_(p));
         p.size.x = std::max(p.size.x, title_w);
+        if (!p.tab_x.empty()) p.size.x = std::max(p.size.x, p.tab_x.back() + padding_(p).x);
         p.size   = glm::max(p.size, p.min_size);
 
         // A centered (pivoted) panel can only be placed once its size is
@@ -580,8 +591,89 @@ float Context::title_height_(const Panel& panel) const {
     return snap_(text_height_ + 2.0f * style_.title_padding);
 }
 
+// -----------------------------------------------------------------------------
+// Tabs
+// -----------------------------------------------------------------------------
+
+int Context::panel_tab() const {
+    return layout_.panel ? layout_.panel->tab : 0;
+}
+
+void Context::set_panel_tab(std::string_view title, int tab) {
+    const ID id = hash_(title, PANEL_SEED);
+    for (auto& pending : pending_tabs_) {
+        if (pending.first == id) { pending.second = tab; return; }
+    }
+    pending_tabs_.emplace_back(id, tab);
+}
+
+float Context::tabs_height_(const Panel& panel) const {
+    if (panel.tabs.empty()) return 0.0f;
+    return snap_(text_height_ + 2.0f * style_.frame_padding.y + 2.0f * style_.title_padding);
+}
+
+void Context::update_tabs_(Panel& p, std::span<const std::string_view> tabs) {
+    p.tabs.resize(tabs.size());
+    p.tab_x.resize(tabs.size());
+    p.tab_hot = -1;
+    if (tabs.empty()) { p.tab = 0; return; }
+
+    // Left to right from the padding, each as wide as its label
+    float x = padding_(p).x;
+    for (std::size_t i = 0; i < tabs.size(); i++) {
+        p.tabs[i]  = std::string(visible_(tabs[i]));
+        x         += snap_(text_width_(p.tabs[i]) + 3.0f * style_.frame_padding.x);
+        p.tab_x[i] = x;
+        x         += thickness_(2.0f);
+    }
+    p.tab = std::clamp(p.tab, 0, static_cast<int>(tabs.size()) - 1);
+
+    // Hover and click; a click on another tab picks it and scrolls the
+    // content back to the top
+    const float top = p.pos.y + title_height_(p) + style_.title_padding;
+    const float h   = tabs_height_(p) - style_.title_padding;
+    if (hot_panel_ != p.id || on_popup_ || active_id_ != 0) return;
+    for (std::size_t i = 0; i < tabs.size(); i++) {
+        const float left = i == 0 ? padding_(p).x : p.tab_x[i - 1] + thickness_(2.0f);
+        const Rect  r    = Rect{ { p.pos.x + left, top }, { p.pos.x + p.tab_x[i], top + h } };
+        if (!r.contains(mouse_)) continue;
+        p.tab_hot  = static_cast<int>(i);
+        ui_cursor_ = CursorStyle::Hand;
+        if (mouse_pressed_ && p.tab != static_cast<int>(i)) {
+            p.tab    = static_cast<int>(i);
+            p.scroll = 0.0f;
+        }
+    }
+}
+
+void Context::draw_tabs_(const Panel& p) {
+    if (p.tabs.empty()) return;
+    const Rect  r   = p.rect();
+    const float bw  = thickness_(style_.border_width);
+    const float top = r.min.y + title_height_(p) + style_.title_padding;
+    const float bot = r.min.y + header_height_(p);
+
+    // A line under the strip; the picked tab sits on it, open to the content
+    draw_box_({ { r.min.x + bw, bot - bw }, { r.max.x - bw, bot } }, style_.separator);
+    for (std::size_t i = 0; i < p.tabs.size(); i++) {
+        const float left = r.min.x + (i == 0 ? padding_(p).x : p.tab_x[i - 1] + thickness_(2.0f));
+        const Rect  tab  = { { left, top }, { r.min.x + p.tab_x[i], bot } };
+        const bool  picked = static_cast<int>(i) == p.tab;
+        const bool  hot    = static_cast<int>(i) == p.tab_hot;
+
+        const glm::vec4& bg = picked ? style_.panel_bg : hot ? style_.frame_bg_hovered : style_.title_bg;
+        draw_box_(tab, bg, style_.frame_rounding);
+        draw_box_({ { tab.min.x, tab.center().y }, tab.max }, bg); // square at the bottom
+        if (picked) {
+            draw_box_({ tab.min, { tab.max.x, tab.min.y + thickness_(2.0f) } }, style_.accent, 0.0f);
+            draw_box_({ { tab.min.x, bot - bw }, { tab.max.x, bot } }, style_.panel_bg); // open below
+        }
+        draw_text_in_(tab, p.tabs[i], picked ? style_.heading : hot ? style_.text : style_.text_dim, 0.0f, true);
+    }
+}
+
 float Context::max_scroll_(const Panel& p) const {
-    const float view_h = p.size.y - title_height_(p) - 2.0f * padding_(p).y;
+    const float view_h = p.size.y - header_height_(p) - 2.0f * padding_(p).y;
     const float max    = std::max(0.0f, p.content.y - view_h);
 
     // Stepped: far enough that the last step shows whole (a row pitch
@@ -592,7 +684,7 @@ float Context::max_scroll_(const Panel& p) const {
 
 bool Context::scrollbar_(const Panel& p, Scrollbar& out) const {
     if (p.has(PanelFlags::AutoSize)) return false;
-    const float title_h = title_height_(p);
+    const float title_h = header_height_(p);
     const float view_h  = p.size.y - title_h - 2.0f * padding_(p).y;
     if (view_h <= 0.0f || p.content.y <= view_h) return false;
 
@@ -660,6 +752,8 @@ void Context::draw_chrome_(Panel& p) {
         }
     }
 
+    draw_tabs_(p);
+
     // Scrollbar: a thumb showing which part of the content is in view,
     // brighter while held
     Scrollbar bar;
@@ -683,6 +777,7 @@ void Context::draw_chrome_(Panel& p) {
 
 Rect Context::place_(glm::vec2 size, bool fill) {
     Layout& L = layout_;
+    L.next_width = 0.0f; // used up by whatever's placed next
 
     glm::vec2 pos;
     if (L.same_line) {
@@ -709,6 +804,7 @@ float Context::frame_height_() const {
 }
 
 float Context::control_width_() const {
+    if (layout_.next_width > 0.0f) return snap_(layout_.next_width);
     const Panel* p = layout_.panel;
     if (!p || p->has(PanelFlags::AutoSize)) return style_.control_width;
     return std::max(60.0f, snap_(layout_.content.width() * style_.control_fraction));
