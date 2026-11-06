@@ -278,8 +278,10 @@ public:
 
     // Single line. Focus by clicking; Enter, Escape or a click elsewhere
     // ends editing. Returns true on every edit. Printable ASCII only.
+    // `hint` shows dimmed while the field is empty and not being edited,
+    // such as "Search".
     bool text_field(std::string_view label, std::string& value,
-                    std::size_t max_length = 256);
+                    std::size_t max_length = 256, std::string_view hint = {});
 
     // One choice from `items`; `selected` is an index into it (-1 = none)
     bool dropdown(std::string_view label, int& selected,
