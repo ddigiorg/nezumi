@@ -74,12 +74,14 @@ struct Style {
     // Panels: see-through, so the game shows behind them
     glm::vec4 panel_bg           = { 0.10f, 0.11f, 0.15f, 0.86f }; // #1A1B26
     glm::vec4 panel_border       = { 0.23f, 0.26f, 0.38f, 1.00f }; // #3B4261: panels behind
+    glm::vec4 panel_border_hovered = { 0.00f, 0.00f, 0.00f, 0.00f }; // under the cursor; clear: as above
     glm::vec4 border_front       = { 0.49f, 0.81f, 1.00f, 1.00f }; // #7DCFFF: the front panel's
     glm::vec4 border_front_end   = { 0.73f, 0.60f, 0.97f, 1.00f }; // #BB9AF7  outline, a gradient
     glm::vec4 panel_shadow       = { 0.00f, 0.00f, 0.00f, 0.00f }; // none
     glm::vec4 title_bg           = { 0.00f, 0.00f, 0.00f, 0.00f }; // header fill: none, a line under it
     glm::vec4 title_bg_front     = { 0.00f, 0.00f, 0.00f, 0.00f };
     glm::vec4 header_line        = { 0.23f, 0.26f, 0.38f, 1.00f }; // under the header (or tab strip)
+    glm::vec4 tab_bg             = { 0.00f, 0.00f, 0.00f, 0.00f }; // every tab's fill: none
     glm::vec4 tab_hovered        = { 0.75f, 0.79f, 0.96f, 0.06f }; // a faint wash of text color
     glm::vec4 tab_picked         = { 0.49f, 0.81f, 1.00f, 0.08f }; // in a tab strip; underlined in accent
 
@@ -109,7 +111,8 @@ struct Style {
     glm::vec4 close_hovered      = { 0.97f, 0.46f, 0.56f, 1.00f }; // #F7768E
     glm::vec4 close_text_hovered = { 0.10f, 0.11f, 0.15f, 1.00f };
     glm::vec4 separator          = { 0.23f, 0.26f, 0.38f, 1.00f }; // #3B4261
-    glm::vec4 scrollbar          = { 0.34f, 0.37f, 0.54f, 0.90f }; // #565F89
+    glm::vec4 scrollbar          = { 0.34f, 0.37f, 0.54f, 0.90f }; // #565F89: the thumb
+    glm::vec4 scrollbar_track    = { 0.00f, 0.00f, 0.00f, 0.00f }; // behind it: none
     glm::vec4 selection          = { 0.73f, 0.60f, 0.97f, 0.30f }; // #BB9AF7, faint
     glm::vec4 tooltip_bg         = { 0.09f, 0.09f, 0.12f, 0.96f }; // #16161E
     glm::vec4 tooltip_border     = { 0.23f, 0.26f, 0.38f, 1.00f }; // #3B4261

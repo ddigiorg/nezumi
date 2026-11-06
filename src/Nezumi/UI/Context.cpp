@@ -749,6 +749,7 @@ void Context::draw_tabs_(const Panel& p) {
         // A wash on hover (and on the picked tab in a strip), and the picked
         // one underlined in the accent, over the line under the header
         const Rect body = { tab.min, { tab.max.x, tab.max.y - line } };
+        if (style_.tab_bg.a > 0.0f) draw_box_(body, style_.tab_bg);
         if (picked && !in_title) draw_box_(body, style_.tab_picked);
         else if (hot && !picked) draw_box_(body, style_.tab_hovered);
         if (picked) draw_box_({ { tab.min.x, tab.max.y - mark }, tab.max }, style_.accent);
@@ -827,8 +828,12 @@ void Context::draw_chrome_(Panel& p) {
         draw_box_(Rect{ r.min + glm::vec2(0.0f, s1), r.max + glm::vec2(s1, 2.0f * s1) }, style_.panel_shadow, radius + s1);
     }
 
-    // Background and outline: the front panel's in a gradient
-    if (front && style_.border_front.a + style_.border_front_end.a > 0.0f) {
+    // Background and outline: the hovered panel's in its own color if the
+    // style gives one, else the front panel's in a gradient
+    const bool hot = p.id == hot_panel_ && style_.panel_border_hovered.a > 0.0f;
+    if (hot) {
+        draw_box_(r, style_.panel_bg, radius, style_.panel_border_hovered, style_.panel_border_width);
+    } else if (front && style_.border_front.a + style_.border_front_end.a > 0.0f) {
         draw_box_(r, style_.panel_bg, radius);
         list_->push_back({ UIQuad{
             .pos_box      = { r.min.x, r.min.y, r.max.x, r.max.y },
@@ -881,12 +886,14 @@ void Context::draw_chrome_(Panel& p) {
     draw_tabs_(p);
 
     // Scrollbar: a thumb showing which part of the content is in view,
-    // brighter while held
+    // brighter while held, over its track if the style fills one
     Scrollbar bar;
     if (scrollbar_(p, bar)) {
+        const float rounding = std::min(style_.frame_rounding, style_.scrollbar_width * 0.5f);
+        if (style_.scrollbar_track.a > 0.0f) draw_box_(bar.track, style_.scrollbar_track, rounding);
         glm::vec4 color = style_.scrollbar;
         if (scroll_drag_ == p.id) color = style_.accent;
-        draw_box_(bar.thumb, color, std::min(style_.frame_rounding, style_.scrollbar_width * 0.5f));
+        draw_box_(bar.thumb, color, rounding);
     }
 
     // Resize grip in the bottom-right corner
